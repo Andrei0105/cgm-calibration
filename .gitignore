@@ -117,3 +117,6 @@ venv.bak/
 
 ### VisualStudioCode ###
 .vscode/
+
+#Config
+config.ini

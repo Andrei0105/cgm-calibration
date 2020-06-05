@@ -1,14 +1,30 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from dataclasses import dataclass
+from urllib.parse import quote
+import pymongo
+import configparser
+
+config = configparser.ConfigParser()
+config.read('example.ini')
 
 @dataclass
 class Point:
     raw: float
     glucose: float
 
+
+class MongoConnector:
+    def __init__(self):
+        self.client = pymongo.MongoClient('mongodb://' + config['Mongo']['User'] + ':' + quote(config['Mongo']['Password']) + '@' +  config['Mongo']['Address'] + config['Mongo']['Database'])
+        self.db = self.client[config['Mongo']['Database']]
+        self.col_entries = self.db[config['Mongo']['Col_Entries']]
+        self.col_treatments = self.db[config['Mongo']['Col_Treatments']]
+
+    def find_finger_checks(self):
+        return self.col_treatments.find({ "glucoseType": "Finger" })
+
 def get_slope_and_intercept_two_points(points):
-    # a list of two Points
     slope = int((points[0].raw - points[1].raw) / (points[0].glucose - points[1].glucose))
     intercept = int(points[0].raw - points[0].glucose * slope)
     return slope, intercept
@@ -44,3 +60,6 @@ for si in slopes_and_intercepts:
     print(si[0], si[1])
     print([int((rv - si[1]) / si[0]) for rv in raw_values])
 
+mc = MongoConnector()
+for x in mc.find_finger_checks():
+    print(x)
