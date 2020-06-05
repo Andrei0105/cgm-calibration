@@ -33,3 +33,21 @@ plt.show()
 #    "glucoseType": "Finger"
 # }
 
+
+# 111 129765
+# 90 97059
+# 90 99 99765
+
+# raw = glucose * slope + intercept
+# glucose = (raw - intercept) / slope
+
+ref_slope = 1004
+ref_intercept = 8331
+glucose_values = [55, 70, 100, 130, 150, 180, 200, 240]
+raw_values = [gv * ref_slope + ref_intercept  for gv in glucose_values]
+slopes_and_intercepts = [ (970, 13481), (1081, 32261), (1714, -76700), (823, 35215) ]
+print(ref_slope, ref_intercept)
+print(glucose_values)
+for si in slopes_and_intercepts:
+    print(si[0], si[1])
+    print([int((rv - si[1]) / si[0]) for rv in raw_values])
