@@ -1,4 +1,4 @@
-#CGM calibration
+# CGM calibration
 
 I use the code here to explore and analyze continuous glucose monitoring calibration data from Spike app (https://spike-app.com/). 
 

@@ -13,6 +13,11 @@ class Point:
     raw: float
     glucose: float
 
+@dataclass
+class CalibrationSlope:
+    slope: float
+    intercept: float
+
 
 class MongoConnector:
     def __init__(self):
@@ -43,6 +48,7 @@ class MongoConnector:
             cfc['unfiltered_avg'] = int((previous_raw_entry['unfiltered'] + next_raw_entry['unfiltered']) / 2)
         return cal_finger_checks
 
+
 def get_slope_and_intercept_two_points(points):
     slope = int((points[0].raw - points[1].raw) / (points[0].glucose - points[1].glucose))
     intercept = int(points[0].raw - points[0].glucose * slope)
@@ -51,6 +57,9 @@ def get_slope_and_intercept_two_points(points):
 def get_raw(slope, intercept, glucose):
     return slope * glucose + intercept
 
+def get_glucose(slope, intercept, raw):
+    return (raw - intercept) / slope
+
 def get_fit_from_calibration_values(calibrations):
     cals_x = [cal['glucose'] for cal in calibrations]
     cals_y = [cal['unfiltered_avg'] for cal in calibrations]
@@ -58,46 +67,53 @@ def get_fit_from_calibration_values(calibrations):
     pfit, _ = np.polynomial.Polynomial.fit(cals_x, cals_y, 1, full=True, window=(gmin, gmax), domain=(gmin, gmax))
     return pfit
 
-def plot_calibration_values_and_fit(calibrations, axes):
+def plot_calibration_values_and_fit(calibrations, max_glucose, axes):
     pfit = get_fit_from_calibration_values(calibrations)
     for cal in calibrations:
         plt.plot(cal['glucose'], cal['unfiltered_avg'], marker='o', color='red')
     cals_x = [cal['glucose'] for cal in calibrations]
-    cals_x = np.append(cals_x, [0, 250])
-    axes.plot(cals_x, pfit(cals_x))
+    cals_x = np.append(cals_x, [0, max_glucose])
+    axes.plot(cals_x, pfit(cals_x), label='y=' + str(int(list(pfit)[1])) + 'x + ' + str(int(list(pfit)[0])))
+    axes.title.set_text('Calibration graph')
+    axes.set_xlabel('mg/dl', color='#1C2833')
+    axes.set_ylabel('raw', color='#1C2833')
+    axes.legend(loc='upper left')
     axes.grid()
 
+def plot_calibration_slopes(calibration_slopes, max_glucose, axes):
+    glucose = np.linspace(0, max_glucose, max_glucose)
+    for cs in calibration_slopes:
+        raw = get_raw(cs.slope, cs.intercept, glucose)
+        axes.plot(glucose, raw, label='y=' + str(cs.slope) + 'x + ' + str(cs.intercept), c=np.random.rand(3,))
+    axes.title.set_text('Multiple slopes graph')
+    axes.set_xlabel('mg/dl', color='#1C2833')
+    axes.set_ylabel('raw', color='#1C2833')
+    axes.legend(loc='upper left')
+    axes.grid()
 
-x = np.linspace(0,500,500)
+def print_glucose_for_calibration_slopes(reference_slope, calibration_slopes, glucose_values=None):
+    glucose_values = [55, 70, 100, 130, 150, 180, 200, 240] if glucose_values is None else glucose_values
+    raw_values = [get_raw(reference_slope.slope, reference_slope.intercept, gv) for gv in glucose_values]
+    print('Slope:', reference_slope.slope)
+    print('Intercept:', reference_slope.intercept)
+    print(glucose_values)
+    for cs in calibration_slopes:
+        print('Slope:', cs.slope, '\tIntercept:', cs.intercept)
+        print([int(get_glucose(cs.slope, cs.intercept, rv)) for rv in raw_values])
 
-points = [Point(157412, 148), Point(97059, 90)]
-slope, intercept = get_slope_and_intercept_two_points(points)
-plt.plot(x, slope * x + intercept, '-r', label='y=' + str(slope) + 'x + ' + str(intercept), c='red')
 
-slopes_and_intercepts = [ (1004, 8331), (1237, 4296), (1658, -25469), (702, 46868), (970, 13481)]
-for si in slopes_and_intercepts:
-    y = get_raw(si[0], si[1], x)
-    plt.plot(x, y, '-r', label='y=' + str(si[0]) + 'x + ' + str(si[1]), c=np.random.rand(3,))
-plt.title('Calibration graph')
-plt.xlabel('mg/dl', color='#1C2833')
-plt.ylabel('raw', color='#1C2833')
-plt.legend(loc='upper left')
-plt.grid()
-
-ref_slope = 1004
-ref_intercept = 8331
-glucose_values = [55, 70, 100, 130, 150, 180, 200, 240]
-raw_values = [get_raw(ref_slope, ref_intercept, gv) for gv in glucose_values]
+reference_slope = CalibrationSlope(1004, 8331)
 slopes_and_intercepts = [ (970, 13481), (1081, 32261), (1714, -76700), (823, 35215), (1175, -16867) ]
-print(ref_slope, ref_intercept)
-print(glucose_values)
-for si in slopes_and_intercepts:
-    print(si[0], si[1])
-    print([int((rv - si[1]) / si[0]) for rv in raw_values])
+calibration_slopes = [CalibrationSlope(si[0], si[1]) for si in slopes_and_intercepts]
+print_glucose_for_calibration_slopes(reference_slope, calibration_slopes)
 
 mc = MongoConnector()
 
 cals = mc.get_last_n_nondeleted_calibrations(6)
 figure, axes = plt.subplots()
-plot_calibration_values_and_fit(cals, axes)
+plot_calibration_values_and_fit(cals, 250, axes)
+
+figure2, axes2 = plt.subplots()
+plot_calibration_slopes(calibration_slopes, 250, axes2)
+
 plt.show()
