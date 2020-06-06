@@ -30,8 +30,8 @@ class MongoConnector:
     def get_calibration_details(self):
         return list(self.col_entries.find({ "type": "cal" }, {'dateString': 1, "intercept": 1, "slope": 1 }).sort("dateString", -1))
 
-    def get_last_n_nondeleted_calibrations(self):
-        cal_finger_checks = list(self.col_treatments.find({ "glucoseType": "Finger", 'notes': 'Sensor Calibration' }, { '_id': 0, 'created_at': 1, 'glucose': 1}).sort("created_at", -1).limit(10))
+    def get_last_n_nondeleted_calibrations(self, n):
+        cal_finger_checks = list(self.col_treatments.find({ "glucoseType": "Finger", 'notes': 'Sensor Calibration' }, { '_id': 0, 'created_at': 1, 'glucose': 1}).sort("created_at", -1).limit(n))
         for cfc in cal_finger_checks:
             cal_details = list(self.col_entries.find({ "type": "cal", 'dateString': cfc['created_at'] }, { 'dateString': 1, "intercept": 1, "slope": 1 }).sort("dateString", -1).limit(1))[0]
             previous_raw_entry = list(self.col_entries.find({ 'unfiltered': { '$exists': True }, 'dateString': { '$lt': cal_details['dateString'] }}, { 'dateString': 1, 'unfiltered': 1, 'filtered': 1, 'sgv': 1 }).sort("dateString", -1).limit(1))[0]
@@ -51,6 +51,23 @@ def get_slope_and_intercept_two_points(points):
 def get_raw(slope, intercept, glucose):
     return slope * glucose + intercept
 
+def get_fit_from_calibration_values(calibrations):
+    cals_x = [cal['glucose'] for cal in calibrations]
+    cals_y = [cal['unfiltered_avg'] for cal in calibrations]
+    gmin, gmax = min(cals_x), max(cals_x)
+    pfit, _ = np.polynomial.Polynomial.fit(cals_x, cals_y, 1, full=True, window=(gmin, gmax), domain=(gmin, gmax))
+    return pfit
+
+def plot_calibration_values_and_fit(calibrations, axes):
+    pfit = get_fit_from_calibration_values(calibrations)
+    for cal in calibrations:
+        plt.plot(cal['glucose'], cal['unfiltered_avg'], marker='o', color='red')
+    cals_x = [cal['glucose'] for cal in calibrations]
+    cals_x = np.append(cals_x, [0, 250])
+    axes.plot(cals_x, pfit(cals_x))
+    axes.grid()
+
+
 x = np.linspace(0,500,500)
 
 points = [Point(157412, 148), Point(97059, 90)]
@@ -66,7 +83,6 @@ plt.xlabel('mg/dl', color='#1C2833')
 plt.ylabel('raw', color='#1C2833')
 plt.legend(loc='upper left')
 plt.grid()
-plt.show()
 
 ref_slope = 1004
 ref_intercept = 8331
@@ -81,5 +97,7 @@ for si in slopes_and_intercepts:
 
 mc = MongoConnector()
 
-for cal in mc.get_last_n_nondeleted_calibrations():
-    print(cal)
+cals = mc.get_last_n_nondeleted_calibrations(6)
+figure, axes = plt.subplots()
+plot_calibration_values_and_fit(cals, axes)
+plt.show()
