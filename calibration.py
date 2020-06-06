@@ -21,8 +21,27 @@ class MongoConnector:
         self.col_entries = self.db[config['Mongo']['Col_Entries']]
         self.col_treatments = self.db[config['Mongo']['Col_Treatments']]
 
-    def find_finger_checks(self):
-        return self.col_treatments.find({ "glucoseType": "Finger" })
+    def get_finger_checks(self):
+        return list(self.col_treatments.find({ "glucoseType": "Finger" }))
+
+    def get_calibration_finger_checks(self):
+        return list(self.col_treatments.find({ "glucoseType": "Finger", 'notes': 'Sensor Calibration' }, {'created_at': 1, 'glucose': 1}).sort("created_at", -1))
+
+    def get_calibration_details(self):
+        return list(self.col_entries.find({ "type": "cal" }, {'dateString': 1, "intercept": 1, "slope": 1 }).sort("dateString", -1))
+
+    def get_last_n_nondeleted_calibrations(self):
+        cal_finger_checks = list(self.col_treatments.find({ "glucoseType": "Finger", 'notes': 'Sensor Calibration' }, { '_id': 0, 'created_at': 1, 'glucose': 1}).sort("created_at", -1).limit(10))
+        for cfc in cal_finger_checks:
+            cal_details = list(self.col_entries.find({ "type": "cal", 'dateString': cfc['created_at'] }, { 'dateString': 1, "intercept": 1, "slope": 1 }).sort("dateString", -1).limit(1))[0]
+            previous_raw_entry = list(self.col_entries.find({ 'unfiltered': { '$exists': True }, 'dateString': { '$lt': cal_details['dateString'] }}, { 'dateString': 1, 'unfiltered': 1, 'filtered': 1, 'sgv': 1 }).sort("dateString", -1).limit(1))[0]
+            next_raw_entry = list(self.col_entries.find({ 'unfiltered': { '$exists': True }, 'dateString': { '$gt': cal_details['dateString'] }}, { 'dateString': 1, 'unfiltered': 1, 'filtered': 1, 'sgv': 1 }).sort("dateString", 1).limit(1))[0]
+            cfc['intercept'] = cal_details['intercept']
+            cfc['slope'] = cal_details['slope']
+            cfc['unfiltered_prev'] = previous_raw_entry['unfiltered']
+            cfc['unfiltered_next'] = next_raw_entry['unfiltered']
+            cfc['unfiltered_avg'] = int((previous_raw_entry['unfiltered'] + next_raw_entry['unfiltered']) / 2)
+        return cal_finger_checks
 
 def get_slope_and_intercept_two_points(points):
     slope = int((points[0].raw - points[1].raw) / (points[0].glucose - points[1].glucose))
@@ -61,5 +80,6 @@ for si in slopes_and_intercepts:
     print([int((rv - si[1]) / si[0]) for rv in raw_values])
 
 mc = MongoConnector()
-for x in mc.find_finger_checks():
-    print(x)
+
+for cal in mc.get_last_n_nondeleted_calibrations():
+    print(cal)
