@@ -48,6 +48,20 @@ class MongoConnector:
             cfc['unfiltered_avg'] = int((previous_raw_entry['unfiltered'] + next_raw_entry['unfiltered']) / 2)
         return cal_finger_checks
 
+    def get_last_n_nondeleted_calibration_slopes(self, n):
+        calibrations = self.get_last_n_nondeleted_calibrations(n)
+        return [CalibrationSlope(c['slope'], c['intercept']) for c in calibrations]
+
+    def get_glucose_values(self, n):
+        glucose_values = list(self.col_treatments.find({ "glucoseType": "Finger", 'glucose': { '$gt': 70, '$lt': 140 } }, { '_id': 0, 'created_at': 1, 'glucose': 1}).sort("created_at", -1).limit(n))
+        for gv in glucose_values:
+            previous_raw_entry = list(self.col_entries.find({ 'unfiltered': { '$exists': True }, 'dateString': { '$lt': gv['created_at'] }}, { 'dateString': 1, 'unfiltered': 1, 'filtered': 1, 'sgv': 1 }).sort("dateString", -1).limit(1))[0]
+            next_raw_entry = list(self.col_entries.find({ 'unfiltered': { '$exists': True }, 'dateString': { '$gt': gv['created_at'] }}, { 'dateString': 1, 'unfiltered': 1, 'filtered': 1, 'sgv': 1 }).sort("dateString", 1).limit(1))[0]
+            gv['unfiltered_prev'] = previous_raw_entry['unfiltered']
+            gv['unfiltered_next'] = next_raw_entry['unfiltered']
+            gv['unfiltered_avg'] = int((previous_raw_entry['unfiltered'] + next_raw_entry['unfiltered']) / 2)
+        return glucose_values
+
 
 def get_slope_and_intercept_two_points(points):
     slope = int((points[0].raw - points[1].raw) / (points[0].glucose - points[1].glucose))
@@ -94,22 +108,24 @@ def plot_calibration_slopes(calibration_slopes, max_glucose, axes):
 def print_glucose_for_calibration_slopes(reference_slope, calibration_slopes, glucose_values=None):
     glucose_values = [55, 70, 100, 130, 150, 180, 200, 240] if glucose_values is None else glucose_values
     raw_values = [get_raw(reference_slope.slope, reference_slope.intercept, gv) for gv in glucose_values]
-    print('Slope:', reference_slope.slope)
-    print('Intercept:', reference_slope.intercept)
+    print('Slope:', reference_slope.slope, '\tIntercept:', reference_slope.intercept)
     print(glucose_values)
     for cs in calibration_slopes:
         print('Slope:', cs.slope, '\tIntercept:', cs.intercept)
         print([int(get_glucose(cs.slope, cs.intercept, rv)) for rv in raw_values])
 
 
-reference_slope = CalibrationSlope(1004, 8331)
-slopes_and_intercepts = [ (970, 13481), (1081, 32261), (1714, -76700), (823, 35215), (1175, -16867) ]
-calibration_slopes = [CalibrationSlope(si[0], si[1]) for si in slopes_and_intercepts]
-print_glucose_for_calibration_slopes(reference_slope, calibration_slopes)
 
 mc = MongoConnector()
 
-cals = mc.get_last_n_nondeleted_calibrations(6)
+calibration_slopes = mc.get_last_n_nondeleted_calibration_slopes(2)
+print_glucose_for_calibration_slopes(calibration_slopes[1], calibration_slopes[:1])
+
+gvals = mc.get_glucose_values(1000)
+figure3, axes3 = plt.subplots()
+plot_calibration_values_and_fit(gvals, 250, axes3)
+
+cals = mc.get_last_n_nondeleted_calibrations(150)
 figure, axes = plt.subplots()
 plot_calibration_values_and_fit(cals, 250, axes)
 
