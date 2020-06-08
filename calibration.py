@@ -88,6 +88,20 @@ class MongoConnector:
             sensors.append(sensor)
         return sensors
 
+    def get_calibration_points_last_sensor(self):
+        sensor_start = self.get_sensor_start_datestrings(1)[0]
+        cal_finger_checks = list(self.col_treatments.find({ "glucoseType": "Finger", 'notes': 'Sensor Calibration', 'created_at': { '$gt': sensor_start } }, { '_id': 0, 'notes': 1, 'created_at': 1, 'glucose': 1}).sort("created_at", -1))
+        for cfc in cal_finger_checks:
+            cal_details = list(self.col_entries.find({ "type": "cal", 'dateString': cfc['created_at'] }, { 'dateString': 1, "intercept": 1, "slope": 1 }).sort("dateString", -1).limit(1))[0]
+            previous_raw_entry = list(self.col_entries.find({ 'unfiltered': { '$exists': True }, 'dateString': { '$lt': cal_details['dateString'] }}, { 'dateString': 1, 'unfiltered': 1, 'filtered': 1, 'sgv': 1 }).sort("dateString", -1).limit(1))[0]
+            next_raw_entry = list(self.col_entries.find({ 'unfiltered': { '$exists': True }, 'dateString': { '$gt': cal_details['dateString'] }}, { 'dateString': 1, 'unfiltered': 1, 'filtered': 1, 'sgv': 1 }).sort("dateString", 1).limit(1))[0]
+            cfc['intercept'] = cal_details['intercept']
+            cfc['slope'] = cal_details['slope']
+            cfc['unfiltered_prev'] = previous_raw_entry['unfiltered']
+            cfc['unfiltered_next'] = next_raw_entry['unfiltered']
+            cfc['unfiltered_avg'] = int((previous_raw_entry['unfiltered'] + next_raw_entry['unfiltered']) / 2)
+        return cal_finger_checks
+
 
 def get_slope_and_intercept_two_points(points):
     slope = int((points[0].raw - points[1].raw) / (points[0].glucose - points[1].glucose))
@@ -125,7 +139,7 @@ def plot_calibration_slopes(calibration_slopes, max_glucose, axes):
     glucose = np.linspace(0, max_glucose, max_glucose)
     for cs in calibration_slopes:
         raw = get_raw(cs.slope, cs.intercept, glucose)
-        axes.plot(glucose, raw, label='y=' + str(cs.slope) + 'x + ' + str(cs.intercept), c=np.random.rand(3,))
+        axes.plot(glucose, raw, label='y=' + str(int(cs.slope)) + 'x + ' + str(int(cs.intercept)), c=np.random.rand(3,))
     axes.title.set_text('Multiple slopes graph')
     axes.set_ylim([-50000, 300000])
     axes.set_xlabel('mg/dl', color='#1C2833')
@@ -136,7 +150,7 @@ def plot_calibration_slopes(calibration_slopes, max_glucose, axes):
 def print_glucose_for_calibration_slopes(reference_slope, calibration_slopes, glucose_values=None):
     glucose_values = [55, 70, 100, 130, 150, 180, 200, 240] if glucose_values is None else glucose_values
     raw_values = [get_raw(reference_slope.slope, reference_slope.intercept, gv) for gv in glucose_values]
-    print('Slope:', reference_slope.slope, '\tIntercept:', reference_slope.intercept)
+    print('Slope:', int(reference_slope.slope), '\tIntercept:', int(reference_slope.intercept))
     print(glucose_values)
     for cs in calibration_slopes:
         print('Slope:', cs.slope, '\tIntercept:', cs.intercept)
@@ -151,7 +165,6 @@ def get_fit_from_sensor(sensor):
 
 def plot_sensor(sensor, max_glucose, axes):
     pfit = get_fit_from_sensor(sensor)
-    print(pfit)
     for gp in sensor.glucose_points:
         axes.plot(gp.glucose, gp.raw, marker='o', color='red')
     glucose = [gp.glucose for gp in sensor.glucose_points]
@@ -200,5 +213,13 @@ figure, axes = plt.subplots()
 plot_calibration_slopes(calibration_slopes, 250, axes)
 cals = mc.get_last_n_nondeleted_calibrations(5)
 plot_calibration_values_and_fit(cals, 250, axes)
+
+cps = mc.get_calibration_points_last_sensor()[:7]
+figure, axes = plt.subplots()
+plot_calibration_values_and_fit(cps, 250, axes)
+cfit = get_fit_from_calibration_values(cps)
+cs = CalibrationSlope(slope=list(cfit)[1], intercept=list(cfit)[0])
+print_glucose_for_calibration_slopes(cs, [CalibrationSlope(1169, 8125)])
+plot_calibration_slopes([CalibrationSlope(1169, 8125)], 250, axes)
 
 plt.show()
