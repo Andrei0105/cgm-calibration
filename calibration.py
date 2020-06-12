@@ -135,11 +135,20 @@ def plot_calibration_values_and_fit(calibrations, max_glucose, axes):
     axes.legend(loc='upper left')
     axes.grid(True)
 
-def plot_calibration_slopes(calibration_slopes, max_glucose, axes):
+def plot_calibration_slope(calibration_slope, max_glucose, axes):
     glucose = np.linspace(0, max_glucose, max_glucose)
+    raw = get_raw(calibration_slope.slope, calibration_slope.intercept, glucose)
+    axes.plot(glucose, raw, label='y=' + str(int(calibration_slope.slope)) + 'x + ' + str(int(calibration_slope.intercept)), c=np.random.rand(3,))
+    axes.title.set_text('Calibration slope graph')
+    axes.set_ylim([-50000, 300000])
+    axes.set_xlabel('mg/dl', color='#1C2833')
+    axes.set_ylabel('raw', color='#1C2833')
+    axes.legend(loc='upper left')
+    axes.grid(True)
+
+def plot_calibration_slopes(calibration_slopes, max_glucose, axes):
     for cs in calibration_slopes:
-        raw = get_raw(cs.slope, cs.intercept, glucose)
-        axes.plot(glucose, raw, label='y=' + str(int(cs.slope)) + 'x + ' + str(int(cs.intercept)), c=np.random.rand(3,))
+        plot_calibration_slope(cs, max_glucose, axes)
     axes.title.set_text('Multiple slopes graph')
     axes.set_ylim([-50000, 300000])
     axes.set_xlabel('mg/dl', color='#1C2833')
