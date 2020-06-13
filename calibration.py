@@ -23,6 +23,7 @@ class CalibrationSlope:
 class Sensor:
     start: str
     glucose_points: List[Point]
+    calibration_points: List[Point]
 
 class MongoConnector:
     def __init__(self):
@@ -76,8 +77,8 @@ class MongoConnector:
         sensors = []
         sensor_starts = self.get_sensor_start_datestrings(number_of_sensors)
         for i, ss in enumerate(sensor_starts):
-            sensor = Sensor(start=ss, glucose_points=[])
-            glucose_values = list(self.col_treatments.find({ "glucoseType": "Finger", 'created_at': { '$gt': ss, '$lt': sensor_starts[i-1] if i > 0 else '2050-06-01T06:53:52.000Z' } }, { '_id': 0, 'created_at': 1, 'glucose': 1}).sort("created_at", -1))
+            sensor = Sensor(start=ss, glucose_points=[], calibration_points=[])
+            glucose_values = list(self.col_treatments.find({ "glucoseType": "Finger", 'created_at': { '$gt': ss, '$lt': sensor_starts[i-1] if i > 0 else '2050-06-01T06:53:52.000Z' } }, { '_id': 0, 'created_at': 1, 'glucose': 1, 'notes': 1}).sort("created_at", -1))
             for gv in glucose_values:
                 previous_raw_entry = list(self.col_entries.find({ 'unfiltered': { '$exists': True }, 'dateString': { '$lt': gv['created_at'] }}, { 'dateString': 1, 'unfiltered': 1, 'filtered': 1, 'sgv': 1 }).sort("dateString", -1).limit(1))[0]
                 next_raw_entry = list(self.col_entries.find({ 'unfiltered': { '$exists': True }, 'dateString': { '$gt': gv['created_at'] }}, { 'dateString': 1, 'unfiltered': 1, 'filtered': 1, 'sgv': 1 }).sort("dateString", 1).limit(1))[0]
@@ -85,6 +86,8 @@ class MongoConnector:
                 gv['unfiltered_next'] = next_raw_entry['unfiltered']
                 gv['unfiltered_avg'] = int((previous_raw_entry['unfiltered'] + next_raw_entry['unfiltered']) / 2)
                 sensor.glucose_points.append(Point(raw=gv['unfiltered_avg'], glucose=gv['glucose']))
+                if 'notes' in gv and gv['notes'] == 'Sensor Calibration':
+                    sensor.calibration_points.append(Point(raw=gv['unfiltered_avg'], glucose=gv['glucose']))
             sensors.append(sensor)
         return sensors
 
@@ -165,18 +168,29 @@ def print_glucose_for_calibration_slopes(reference_slope, calibration_slopes, gl
         print('Slope:', cs.slope, '\tIntercept:', cs.intercept)
         print([int(get_glucose(cs.slope, cs.intercept, rv)) for rv in raw_values])
 
-def get_fit_from_sensor(sensor):
-    glucose = [gp.glucose for gp in sensor.glucose_points]
-    raw = [gp.raw for gp in sensor.glucose_points]
+def get_fit_from_sensor(sensor, calibrations_only=False):
+    if calibrations_only:
+        points = sensor.calibration_points
+    else:
+        points = sensor.glucose_points
+    glucose = [gp.glucose for gp in points]
+    raw = [gp.raw for gp in points]
     gmin, gmax = min(glucose), max(glucose)
     pfit, _ = np.polynomial.Polynomial.fit(glucose, raw, 1, full=True, window=(gmin, gmax), domain=(gmin, gmax))
     return pfit
 
-def plot_sensor(sensor, max_glucose, axes):
-    pfit = get_fit_from_sensor(sensor)
-    for gp in sensor.glucose_points:
+def plot_sensor(sensor, max_glucose, axes, calibrations_only=False):
+    if calibrations_only:
+        points = sensor.calibration_points
+    else:
+        points = sensor.glucose_points
+    if len(points) < 2:
+        plt.close()
+        return
+    pfit = get_fit_from_sensor(sensor, calibrations_only)
+    for gp in points:
         axes.plot(gp.glucose, gp.raw, marker='o', color='red')
-    glucose = [gp.glucose for gp in sensor.glucose_points]
+    glucose = [gp.glucose for gp in points]
     glucose = np.append(glucose, [0, max_glucose])
     axes.plot(glucose, pfit(glucose), label='y=' + str(int(list(pfit)[1])) + 'x + ' + str(int(list(pfit)[0])))
     axes.title.set_text('Sensor start: ' + sensor.start)
@@ -217,10 +231,15 @@ if __name__ == "__main__":
         figure, axes = plt.subplots()
         plot_calibration_values_and_fit(calibrations, 250, axes)
 
-        # plot the last 2 sensors (glucose values and calibration slope for them)
+        # plot the last 2 sensors (all glucose values and calibration slope for them)
         for s in mc.get_sensors(2):
             figure, axes = plt.subplots()
             plot_sensor(s, 250, axes)
+
+        # plot all sensors (only calibration values and calibration slope for them)
+        for s in mc.get_sensors(0):
+            figure, axes = plt.subplots()
+            plot_sensor(s, 250, axes, True)
 
         # plot the last calibration slope and the slope generated from last sensor's values
         sensor = mc.get_sensors(1)[0]
