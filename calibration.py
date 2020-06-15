@@ -58,6 +58,14 @@ class MongoConnector:
         calibrations = self.get_last_n_nondeleted_calibrations(n)
         return [CalibrationSlope(c['slope'], c['intercept']) for c in calibrations]
 
+    def get_last_n_calibrations(self, n):
+        calibrations = list(self.col_entries.find({ "type": "cal"}, { 'dateString': 1, "intercept": 1, "slope": 1 }).sort("dateString", -1).limit(n))
+        return calibrations
+
+    def get_last_n_calibration_slopes(self, n):
+        calibrations = self.get_last_n_calibrations(n)
+        return [CalibrationSlope(c['slope'], c['intercept']) for c in calibrations]
+
     def get_glucose_values(self, n):
         glucose_values = list(self.col_treatments.find({ "glucoseType": "Finger", 'glucose': { '$gt': 70, '$lt': 140 } }, { '_id': 0, 'created_at': 1, 'glucose': 1}).sort("created_at", -1).limit(n))
         for gv in glucose_values:
@@ -94,6 +102,20 @@ class MongoConnector:
     def get_calibration_points_last_sensor(self):
         sensor_start = self.get_sensor_start_datestrings(1)[0]
         cal_finger_checks = list(self.col_treatments.find({ "glucoseType": "Finger", 'notes': 'Sensor Calibration', 'created_at': { '$gt': sensor_start } }, { '_id': 0, 'notes': 1, 'created_at': 1, 'glucose': 1}).sort("created_at", -1))
+        for cfc in cal_finger_checks:
+            cal_details = list(self.col_entries.find({ "type": "cal", 'dateString': cfc['created_at'] }, { 'dateString': 1, "intercept": 1, "slope": 1 }).sort("dateString", -1).limit(1))[0]
+            previous_raw_entry = list(self.col_entries.find({ 'unfiltered': { '$exists': True }, 'dateString': { '$lt': cal_details['dateString'] }}, { 'dateString': 1, 'unfiltered': 1, 'filtered': 1, 'sgv': 1 }).sort("dateString", -1).limit(1))[0]
+            next_raw_entry = list(self.col_entries.find({ 'unfiltered': { '$exists': True }, 'dateString': { '$gt': cal_details['dateString'] }}, { 'dateString': 1, 'unfiltered': 1, 'filtered': 1, 'sgv': 1 }).sort("dateString", 1).limit(1))[0]
+            cfc['intercept'] = cal_details['intercept']
+            cfc['slope'] = cal_details['slope']
+            cfc['unfiltered_prev'] = previous_raw_entry['unfiltered']
+            cfc['unfiltered_next'] = next_raw_entry['unfiltered']
+            cfc['unfiltered_avg'] = int((previous_raw_entry['unfiltered'] + next_raw_entry['unfiltered']) / 2)
+        return cal_finger_checks
+
+    def get_calibration_points_previous_sensor(self):
+        new_sensor_start, sensor_start = self.get_sensor_start_datestrings(2)
+        cal_finger_checks = list(self.col_treatments.find({ "glucoseType": "Finger", 'notes': 'Sensor Calibration', 'created_at': { '$gt': sensor_start, '$lt': new_sensor_start } }, { '_id': 0, 'notes': 1, 'created_at': 1, 'glucose': 1}).sort("created_at", -1))
         for cfc in cal_finger_checks:
             cal_details = list(self.col_entries.find({ "type": "cal", 'dateString': cfc['created_at'] }, { 'dateString': 1, "intercept": 1, "slope": 1 }).sort("dateString", -1).limit(1))[0]
             previous_raw_entry = list(self.col_entries.find({ 'unfiltered': { '$exists': True }, 'dateString': { '$lt': cal_details['dateString'] }}, { 'dateString': 1, 'unfiltered': 1, 'filtered': 1, 'sgv': 1 }).sort("dateString", -1).limit(1))[0]
