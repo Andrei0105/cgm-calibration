@@ -140,6 +140,8 @@ def get_glucose(slope, intercept, raw):
     return (raw - intercept) / slope
 
 def get_fit_from_calibration_values(calibrations):
+    if len(calibrations) < 2:
+        return None
     cals_x = [cal['glucose'] for cal in calibrations]
     cals_y = [cal['unfiltered_avg'] for cal in calibrations]
     gmin, gmax = min(cals_x), max(cals_x)
@@ -150,15 +152,16 @@ def plot_calibration_values_and_fit(calibrations, max_glucose, axes):
     pfit = get_fit_from_calibration_values(calibrations)
     for cal in calibrations:
         axes.plot(cal['glucose'], cal['unfiltered_avg'], marker='o', color='red')
-    cals_x = [cal['glucose'] for cal in calibrations]
-    cals_x = np.append(cals_x, [0, max_glucose])
-    axes.plot(cals_x, pfit(cals_x), label='y=' + str(int(list(pfit)[1])) + 'x + ' + str(int(list(pfit)[0])))
-    axes.title.set_text('Calibration graph')
-    axes.set_ylim([-50000, 300000])
-    axes.set_xlabel('mg/dl', color='#1C2833')
-    axes.set_ylabel('raw', color='#1C2833')
-    axes.legend(loc='upper left')
-    axes.grid(True)
+    if pfit:
+        cals_x = [cal['glucose'] for cal in calibrations]
+        cals_x = np.append(cals_x, [0, max_glucose])
+        axes.plot(cals_x, pfit(cals_x), label='y=' + str(int(list(pfit)[1])) + 'x + ' + str(int(list(pfit)[0])))
+        axes.title.set_text('Calibration graph')
+        axes.set_ylim([-50000, 300000])
+        axes.set_xlabel('mg/dl', color='#1C2833')
+        axes.set_ylabel('raw', color='#1C2833')
+        axes.legend(loc='upper left')
+        axes.grid(True)
 
 def plot_calibration_slope(calibration_slope, max_glucose, axes):
     glucose = np.linspace(0, max_glucose, max_glucose)
