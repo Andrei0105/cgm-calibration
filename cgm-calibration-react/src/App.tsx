@@ -35,6 +35,17 @@ export class App extends Component<{}, AppState> {
   }
 
   render() {
+    var plotWrapper;
+    if (this.state.nightscoutUrl && this.state.token) {
+      plotWrapper = (
+        <PlotWrapper
+          nightscoutUrl={this.state.nightscoutUrl}
+          token={this.state.token}
+        />
+      );
+    } else {
+      plotWrapper = undefined;
+    }
     return (
       <div>
         <h3>CGM calibration</h3>
@@ -57,9 +68,68 @@ export class App extends Component<{}, AppState> {
           The URL is {this.state.nightscoutUrl}, and the token is{" "}
           {this.state.token}
         </p>
+        {plotWrapper}
       </div>
     );
   }
 }
 
 export default App;
+
+type PlotWrapperProps = {
+  nightscoutUrl: string;
+  token: string;
+};
+
+type PlotWrapperState = {
+  lastGlucoseValues: GlucoseValue[];
+};
+
+type GlucoseValue = {
+  dateString: string;
+  sgv: number;
+};
+
+class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
+  constructor(props: PlotWrapperProps) {
+    super(props);
+    this.state = { lastGlucoseValues: [] };
+  }
+
+  render() {
+    return (
+      <div>
+        <p>The last 3 values are:</p>
+        <ul>
+          {this.state.lastGlucoseValues.map((gv) => (
+            <li key={gv.dateString}>
+              {gv.dateString} {gv.sgv}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  componentDidMount() {
+    this.fetchLastThree();
+  }
+
+  fetchLastThree() {
+    fetch(
+      this.props.nightscoutUrl +
+        "/api/v3/entries?&sort$desc=date&limit=3&fields=dateString,sgv,direction`&now=" +
+        Date.now() +
+        "&token=" +
+        this.props.token
+    )
+      .then((response) => response.json())
+      .then((response) => {
+        var gvs = [];
+        for (var g of response) {
+          gvs.push(g as GlucoseValue);
+        }
+        this.setState({ lastGlucoseValues: gvs });
+      });
+  }
+}
