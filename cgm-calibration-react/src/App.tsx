@@ -1,5 +1,6 @@
 import React, { Component, FormEvent } from 'react';
 import { CartesianGrid, ComposedChart, Legend, Line, Scatter, Tooltip, XAxis, YAxis } from 'recharts';
+import regression, { DataPoint } from 'regression';
 
 import './App.css';
 
@@ -272,11 +273,11 @@ type CalibrationChartProps = {
 
 class CalibrationChart extends Component<
   CalibrationChartProps,
-  { linePoints: Calibration[] }
+  { linePoints: Calibration[], lineFitPoints: Calibration[]}
 > {
   constructor(props: CalibrationChartProps) {
     super(props);
-    this.state = { linePoints: [] };
+    this.state = { linePoints: [], lineFitPoints: [] };
   }
 
   componentDidMount() {
@@ -291,6 +292,24 @@ class CalibrationChart extends Component<
     } as Calibration;
     let point250 = { glucose: 250, unfiltered_avg: raw250 } as Calibration;
     this.setState({ linePoints: [point0, point250] });
+
+    let calibration_points = []
+    for(let c of this.props.calibrations){
+      calibration_points.push([c.glucose, c.unfiltered_avg] as DataPoint)
+    }
+    let result = regression.linear(calibration_points);
+    const slope = result.equation[0];
+    const intercept = result.equation[1];
+    raw0 = intercept;
+    raw250 = 250 * slope + intercept;
+    point0 = {
+      glucose: 0,
+      unfiltered_avg: raw0,
+      slope: slope,
+      intercept: intercept,
+    } as Calibration;
+    point250 = { glucose: 250, unfiltered_avg: raw250 } as Calibration;
+    this.setState({ lineFitPoints: [point0, point250] });
   }
 
   render() {
@@ -349,6 +368,21 @@ class CalibrationChart extends Component<
               ? Math.round(this.state.linePoints[0].slope) +
                 "x + " +
                 Math.round(this.state.linePoints[0].intercept)
+              : ""
+          }
+        />
+        <Line
+          data={this.state.lineFitPoints}
+          dataKey="unfiltered_avg"
+          stroke="purple"
+          dot={false}
+          activeDot={false}
+          legendType="rect"
+          name={
+            this.state.lineFitPoints.length > 0
+              ? Math.round(this.state.lineFitPoints[0].slope) +
+                "x + " +
+                Math.round(this.state.lineFitPoints[0].intercept)
               : ""
           }
         />
