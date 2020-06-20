@@ -1,5 +1,5 @@
 import React, { Component, FormEvent } from 'react';
-import { CartesianGrid, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from 'recharts';
+import { CartesianGrid, ComposedChart, Legend, Line, Scatter, Tooltip, XAxis, YAxis } from 'recharts';
 
 import './App.css';
 
@@ -270,27 +270,55 @@ type CalibrationChartProps = {
   calibrations: Calibration[];
 };
 
-class CalibrationChart extends Component<CalibrationChartProps, {}> {
+class CalibrationChart extends Component<
+  CalibrationChartProps,
+  { linePoints: Calibration[] }
+> {
   constructor(props: CalibrationChartProps) {
     super(props);
+    this.state = { linePoints: [] };
+  }
+
+  componentDidMount() {
+    let lastCalibration = this.props.calibrations[0];
+    let raw0 = lastCalibration.intercept;
+    let raw250 = 250 * lastCalibration.slope + lastCalibration.intercept;
+    let point0 = {
+      glucose: 0,
+      unfiltered_avg: raw0,
+      slope: lastCalibration.slope,
+      intercept: lastCalibration.intercept,
+    } as Calibration;
+    let point250 = { glucose: 250, unfiltered_avg: raw250 } as Calibration;
+    this.setState({ linePoints: [point0, point250] });
   }
 
   render() {
     return (
-      <ScatterChart
-        width={600}
+      <ComposedChart
+        width={670}
         height={600}
+        data={this.props.calibrations}
         margin={{
-          top: 20,
-          right: 20,
-          bottom: 20,
+          top: 0,
+          right: 50,
+          bottom: 0,
           left: 20,
         }}
       >
-        <CartesianGrid />
+        <CartesianGrid strokeDasharray="5 5" />
+        <Tooltip />
+        <Legend
+          layout="vertical"
+          verticalAlign="top"
+          align="right"
+          wrapperStyle={{ left: 100, right: 0, top: 0, bottom: 0 }}
+        />
+
         <XAxis
           type="number"
           domain={[0, 250]}
+          ticks={[50, 100, 150, 200, 250]}
           dataKey="glucose"
           name="glucose"
           unit="mg/dl"
@@ -298,17 +326,33 @@ class CalibrationChart extends Component<CalibrationChartProps, {}> {
         <YAxis
           type="number"
           domain={[0, 300000]}
+          ticks={[0, 60000, 120000, 180000, 240000, 300000]}
           dataKey="unfiltered_avg"
           name="raw"
           unit=""
         />
-        <Tooltip cursor={{ strokeDasharray: "3 3" }} />
         <Scatter
-          name="Calibration"
-          data={this.props.calibrations}
-          fill="#8884d8"
+          name="red"
+          dataKey="unfiltered_avg"
+          fill="red"
+          legendType="none"
         />
-      </ScatterChart>
+        <Line
+          data={this.state.linePoints}
+          dataKey="unfiltered_avg"
+          stroke="blue"
+          dot={false}
+          activeDot={false}
+          legendType="rect"
+          name={
+            this.state.linePoints.length > 0
+              ? Math.round(this.state.linePoints[0].slope) +
+                "x + " +
+                Math.round(this.state.linePoints[0].intercept)
+              : ""
+          }
+        />
+      </ComposedChart>
     );
   }
 }
