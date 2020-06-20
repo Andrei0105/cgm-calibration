@@ -123,7 +123,19 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
   render() {
     var chart;
     if (this.state.calibrations.length > 0) {
-      chart = <CalibrationChart calibrations={this.state.calibrations} />;
+      chart = (
+        <div>
+          {this.state.calibrations.map((_, index) => (
+            <CalibrationChart
+              key={index}
+              calibrations={this.state.calibrations.slice(
+                index,
+                this.state.calibrations.length
+              )}
+            />
+          ))}
+        </div>
+      );
     } else {
       chart = undefined;
     }
@@ -273,7 +285,7 @@ type CalibrationChartProps = {
 
 class CalibrationChart extends Component<
   CalibrationChartProps,
-  { linePoints: Calibration[], lineFitPoints: Calibration[]}
+  { linePoints: Calibration[]; lineFitPoints: Calibration[] }
 > {
   constructor(props: CalibrationChartProps) {
     super(props);
@@ -293,9 +305,9 @@ class CalibrationChart extends Component<
     let point250 = { glucose: 250, unfiltered_avg: raw250 } as Calibration;
     this.setState({ linePoints: [point0, point250] });
 
-    let calibration_points = []
-    for(let c of this.props.calibrations){
-      calibration_points.push([c.glucose, c.unfiltered_avg] as DataPoint)
+    let calibration_points = [];
+    for (let c of this.props.calibrations) {
+      calibration_points.push([c.glucose, c.unfiltered_avg] as DataPoint);
     }
     let result = regression.linear(calibration_points);
     const slope = result.equation[0];
@@ -365,7 +377,8 @@ class CalibrationChart extends Component<
           legendType="rect"
           name={
             this.state.linePoints.length > 0
-              ? Math.round(this.state.linePoints[0].slope) +
+              ? "Spike " +
+                Math.round(this.state.linePoints[0].slope) +
                 "x + " +
                 Math.round(this.state.linePoints[0].intercept)
               : ""
@@ -380,7 +393,8 @@ class CalibrationChart extends Component<
           legendType="rect"
           name={
             this.state.lineFitPoints.length > 0
-              ? Math.round(this.state.lineFitPoints[0].slope) +
+              ? "Regr. " +
+                Math.round(this.state.lineFitPoints[0].slope) +
                 "x + " +
                 Math.round(this.state.lineFitPoints[0].intercept)
               : ""
