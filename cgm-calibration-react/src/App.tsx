@@ -1,4 +1,5 @@
 import React, { Component, FormEvent } from 'react';
+import { CartesianGrid, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from 'recharts';
 
 import './App.css';
 
@@ -84,7 +85,7 @@ type PlotWrapperProps = {
 type PlotWrapperState = {
   lastGlucoseValues: GlucoseValue[];
   sensorStarts: SensorStart[];
-  calibrationSlopes: Calibration[];
+  calibrations: Calibration[];
   calibrationValues: GlucoseValue[];
 };
 
@@ -113,12 +114,18 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
     this.state = {
       lastGlucoseValues: [],
       sensorStarts: [],
-      calibrationSlopes: [],
+      calibrations: [],
       calibrationValues: [],
     };
   }
 
   render() {
+    var chart;
+    if (this.state.calibrations.length > 0) {
+      chart = <CalibrationChart calibrations={this.state.calibrations} />;
+    } else {
+      chart = undefined;
+    }
     return (
       <div>
         <p>The last 3 values are:</p>
@@ -129,6 +136,7 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
             </li>
           ))}
         </ul>
+        {chart}
       </div>
     );
   }
@@ -189,7 +197,7 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
         for (var c of response) {
           cvs.push(c as Calibration);
         }
-        this.setState({ calibrationSlopes: cvs });
+        this.setState({ calibrations: cvs });
       });
   }
 
@@ -205,8 +213,8 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
     let last_sensor_start_date = new Date(
       this.state.sensorStarts[0].created_at
     );
-    
-    let calibrations: Calibration[] = []
+
+    let calibrations: Calibration[] = [];
 
     for (let cv of calibration_values) {
       if (new Date(cv.created_at) > last_sensor_start_date) {
@@ -232,16 +240,18 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
         );
         let next = await response.json();
         let unfiltered_avg = (previous[0].unfiltered + next[0].unfiltered) / 2;
-        
+
         response = await fetch(
           this.props.nightscoutUrl +
-            "/api/v3/entries?&sort$desc=date&fields=dateString,sgv,type,slope,intercept&type$in=cal&dateString$in=" + cv.created_at + "&now=" +
+            "/api/v3/entries?&sort$desc=date&fields=dateString,sgv,type,slope,intercept&type$in=cal&dateString$in=" +
+            cv.created_at +
+            "&now=" +
             Date.now() +
             "&token=" +
             this.props.token
-        )
-        let calibration_slope_details = (await response.json())[0]
-        
+        );
+        let calibration_slope_details = (await response.json())[0];
+
         let calibration = {
           unfiltered_avg: unfiltered_avg,
           glucose: cv.glucose,
@@ -249,9 +259,56 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
           slope: calibration_slope_details.slope,
           intercept: calibration_slope_details.intercept,
         } as Calibration;
-        calibrations.push(calibration)
+        calibrations.push(calibration);
       }
     }
-    this.setState({calibrationSlopes: calibrations})
+    this.setState({ calibrations: calibrations });
+  }
+}
+
+type CalibrationChartProps = {
+  calibrations: Calibration[];
+};
+
+class CalibrationChart extends Component<CalibrationChartProps, {}> {
+  constructor(props: CalibrationChartProps) {
+    super(props);
+  }
+
+  render() {
+    return (
+      <ScatterChart
+        width={600}
+        height={600}
+        margin={{
+          top: 20,
+          right: 20,
+          bottom: 20,
+          left: 20,
+        }}
+      >
+        <CartesianGrid />
+        <XAxis
+          type="number"
+          domain={[0, 250]}
+          dataKey="glucose"
+          name="glucose"
+          unit="mg/dl"
+        />
+        <YAxis
+          type="number"
+          domain={[0, 300000]}
+          dataKey="unfiltered_avg"
+          name="raw"
+          unit=""
+        />
+        <Tooltip cursor={{ strokeDasharray: "3 3" }} />
+        <Scatter
+          name="Calibration"
+          data={this.props.calibrations}
+          fill="#8884d8"
+        />
+      </ScatterChart>
+    );
   }
 }
