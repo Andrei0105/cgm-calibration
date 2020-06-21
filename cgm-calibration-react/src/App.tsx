@@ -1,5 +1,5 @@
 import React, { Component, FormEvent } from 'react';
-import { CartesianGrid, ComposedChart, Legend, Line, Scatter, Tooltip, XAxis, YAxis } from 'recharts';
+import { CartesianGrid, ComposedChart, Legend, Line, Scatter, XAxis, YAxis } from 'recharts';
 import regression, { DataPoint } from 'regression';
 
 import './App.css';
@@ -221,8 +221,19 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
     );
 
     let calibrations: Calibration[] = [];
-
+    let nextCalibrationDate = new Date();
+    nextCalibrationDate.setDate(nextCalibrationDate.getDate() + 10);
     for (let cv of calibration_values) {
+      if (
+        !(
+          nextCalibrationDate.getTime() >
+          new Date(cv.created_at).getTime() + 30 * 60 * 1000
+        )
+      ) {
+        nextCalibrationDate = new Date(cv.created_at);
+        continue;
+      }
+      nextCalibrationDate = new Date(cv.created_at);
       if (new Date(cv.created_at) > last_sensor_start_date) {
         let response = await fetch(
           this.props.nightscoutUrl +
@@ -302,19 +313,21 @@ class CalibrationChart extends Component<
     for (let c of this.props.calibrations) {
       calibration_points.push([c.glucose, c.unfiltered_avg] as DataPoint);
     }
-    let result = regression.linear(calibration_points);
-    const slope = result.equation[0];
-    const intercept = result.equation[1];
-    raw0 = intercept;
-    raw250 = 250 * slope + intercept;
-    point0 = {
-      glucose: 0,
-      unfiltered_avg: raw0,
-      slope: slope,
-      intercept: intercept,
-    } as Calibration;
-    point250 = { glucose: 250, unfiltered_avg: raw250 } as Calibration;
-    this.setState({ lineFitPoints: [point0, point250] });
+    if (this.props.calibrations.length >= 2) {
+      let result = regression.linear(calibration_points);
+      const slope = result.equation[0];
+      const intercept = result.equation[1];
+      raw0 = intercept;
+      raw250 = 250 * slope + intercept;
+      point0 = {
+        glucose: 0,
+        unfiltered_avg: raw0,
+        slope: slope,
+        intercept: intercept,
+      } as Calibration;
+      point250 = { glucose: 250, unfiltered_avg: raw250 } as Calibration;
+      this.setState({ lineFitPoints: [point0, point250] });
+    }
   }
 
   render() {
@@ -332,7 +345,7 @@ class CalibrationChart extends Component<
           }}
         >
           <CartesianGrid strokeDasharray="5 5" fillOpacity="1" />
-          <Tooltip />
+          {/* <Tooltip /> */}
           <Legend
             layout="vertical"
             verticalAlign="top"
@@ -378,22 +391,26 @@ class CalibrationChart extends Component<
                 : ""
             }
           />
-          <Line
-            data={this.state.lineFitPoints}
-            dataKey="unfiltered_avg"
-            stroke="purple"
-            dot={false}
-            activeDot={false}
-            legendType="rect"
-            name={
-              this.state.lineFitPoints.length > 0
-                ? "Regr. " +
-                  Math.round(this.state.lineFitPoints[0].slope) +
-                  "x + " +
-                  Math.round(this.state.lineFitPoints[0].intercept)
-                : ""
-            }
-          />
+          {this.state.lineFitPoints.length > 0 ? (
+            <Line
+              data={this.state.lineFitPoints}
+              dataKey="unfiltered_avg"
+              stroke="purple"
+              dot={false}
+              activeDot={false}
+              legendType="rect"
+              name={
+                this.state.lineFitPoints.length > 0
+                  ? "Regr. " +
+                    Math.round(this.state.lineFitPoints[0].slope) +
+                    "x + " +
+                    Math.round(this.state.lineFitPoints[0].intercept)
+                  : ""
+              }
+            />
+          ) : (
+            ""
+          )}
         </ComposedChart>
       </div>
     );
