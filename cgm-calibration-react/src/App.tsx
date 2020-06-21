@@ -50,26 +50,32 @@ export class App extends Component<{}, AppState> {
     }
     return (
       <div>
-        <h3>CGM calibration</h3>
-        <form onSubmit={this.updateNightscoutData}>
-          <label htmlFor="nightscout-input">Enter your Nightscout URL</label>
-          <input
-            id="nightscout-input"
-            onChange={this.updateTempNsUrl}
-            value={this.state.tempNsUrl}
-          />
-          <label htmlFor="token-input">Enter your token</label>
-          <input
-            id="token-input"
-            onChange={this.updateTempToken}
-            value={this.state.tempToken}
-          />
-          <button>Submit</button>
-        </form>
-        <p>
-          The URL is {this.state.nightscoutUrl}, and the token is{" "}
-          {this.state.token}
-        </p>
+        <div className="div-form">
+          <div className="div-title">CGM calibration</div>
+          <form onSubmit={this.updateNightscoutData}>
+            <Input
+              id={"1"}
+              changeValue={this.updateTempNsUrl.bind(this)}
+              label="Nightscout URL"
+              predicted="https://"
+              locked={false}
+              active={false}
+              value={this.state.tempNsUrl}
+            />
+            <br></br>
+            <Input
+              id={"2"}
+              changeValue={this.updateTempToken.bind(this)}
+              label="Token"
+              predicted=""
+              locked={false}
+              active={false}
+              value={this.state.tempToken}
+            />
+            <br></br>
+            <button>Submit</button>
+          </form>
+        </div>
         {plotWrapper}
       </div>
     );
@@ -121,9 +127,9 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
   }
 
   render() {
-    var chart;
+    var charts;
     if (this.state.calibrations.length > 0) {
-      chart = (
+      charts = (
         <div>
           {this.state.calibrations.map((_, index) => (
             <CalibrationChart
@@ -137,25 +143,12 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
         </div>
       );
     } else {
-      chart = undefined;
+      charts = <span>Loading...</span>;
     }
-    return (
-      <div>
-        <p>The last 3 values are:</p>
-        <ul>
-          {this.state.lastGlucoseValues.map((gv) => (
-            <li key={gv.dateString}>
-              {gv.dateString} {gv.sgv}
-            </li>
-          ))}
-        </ul>
-        {chart}
-      </div>
-    );
+    return <div className="div-charts">{charts}</div>;
   }
 
   async componentDidMount() {
-    this.fetchLastThree();
     await this.fetchSensorStarts();
     await this.fetchCalibrations();
   }
@@ -326,81 +319,154 @@ class CalibrationChart extends Component<
 
   render() {
     return (
-      <ComposedChart
-        width={670}
-        height={600}
-        data={this.props.calibrations}
-        margin={{
-          top: 0,
-          right: 50,
-          bottom: 0,
-          left: 20,
-        }}
-      >
-        <CartesianGrid strokeDasharray="5 5" />
-        <Tooltip />
-        <Legend
-          layout="vertical"
-          verticalAlign="top"
-          align="right"
-          wrapperStyle={{ left: 100, right: 0, top: 0, bottom: 0 }}
-        />
+      <div className="div-chart">
+        <ComposedChart
+          width={670}
+          height={600}
+          data={this.props.calibrations}
+          margin={{
+            top: 10,
+            right: 50,
+            bottom: 0,
+            left: 10,
+          }}
+        >
+          <CartesianGrid strokeDasharray="5 5" fillOpacity="1" />
+          <Tooltip />
+          <Legend
+            layout="vertical"
+            verticalAlign="top"
+            align="right"
+            wrapperStyle={{ left: 90, right: 0, top: 15, bottom: 0 }}
+          />
 
-        <XAxis
-          type="number"
-          domain={[0, 250]}
-          ticks={[50, 100, 150, 200, 250]}
-          dataKey="glucose"
-          name="glucose"
-          unit="mg/dl"
+          <XAxis
+            type="number"
+            domain={[0, 250]}
+            ticks={[50, 100, 150, 200, 250]}
+            dataKey="glucose"
+            name="glucose"
+            unit="mg/dl"
+          />
+          <YAxis
+            type="number"
+            domain={[0, 300000]}
+            ticks={[0, 60000, 120000, 180000, 240000, 300000]}
+            dataKey="unfiltered_avg"
+            name="raw"
+            unit=""
+          />
+          <Scatter
+            name="red"
+            dataKey="unfiltered_avg"
+            fill="red"
+            legendType="none"
+          />
+          <Line
+            data={this.state.linePoints}
+            dataKey="unfiltered_avg"
+            stroke="blue"
+            dot={false}
+            activeDot={false}
+            legendType="rect"
+            name={
+              this.state.linePoints.length > 0
+                ? "Spike " +
+                  Math.round(this.state.linePoints[0].slope) +
+                  "x + " +
+                  Math.round(this.state.linePoints[0].intercept)
+                : ""
+            }
+          />
+          <Line
+            data={this.state.lineFitPoints}
+            dataKey="unfiltered_avg"
+            stroke="purple"
+            dot={false}
+            activeDot={false}
+            legendType="rect"
+            name={
+              this.state.lineFitPoints.length > 0
+                ? "Regr. " +
+                  Math.round(this.state.lineFitPoints[0].slope) +
+                  "x + " +
+                  Math.round(this.state.lineFitPoints[0].intercept)
+                : ""
+            }
+          />
+        </ComposedChart>
+      </div>
+    );
+  }
+}
+
+type InputProps = {
+  predicted: string;
+  locked: boolean;
+  active: boolean;
+  value?: string;
+  error?: string;
+  label: string;
+  id: string;
+  changeValue: (event: React.FormEvent<Element>) => void;
+};
+
+type InputState = {
+  active: boolean;
+  value: string;
+  error: string;
+  label: string;
+};
+
+class Input extends Component<InputProps, InputState> {
+  constructor(props: InputProps) {
+    super(props);
+
+    this.state = {
+      active: (props.locked && props.active) || false,
+      value: props.value || "",
+      error: props.error || "",
+      label: props.label || "Label",
+    };
+  }
+
+  changeValue(event: React.FormEvent<Element>) {
+    const value = (event.target as HTMLTextAreaElement).value;
+    this.setState({ value, error: "" });
+  }
+
+  handleKeyPress(event: React.KeyboardEvent<HTMLElement>) {
+    if (event.which === 13) {
+      this.setState({ value: this.props.predicted });
+    }
+  }
+
+  render() {
+    const { active, value, error, label } = this.state;
+    const { predicted, locked } = this.props;
+    const fieldClassName = `field ${
+      (locked ? active : active || value) && "active"
+    } ${locked && !active && "locked"}`;
+
+    return (
+      <div className={fieldClassName}>
+        {active && value && predicted && predicted.includes(value) && (
+          <p className="predicted">{predicted}</p>
+        )}
+        <input
+          id={this.props.id}
+          type="text"
+          value={this.props.value}
+          placeholder={label}
+          onChange={this.props.changeValue}
+          onKeyPress={this.handleKeyPress.bind(this)}
+          onFocus={() => !locked && this.setState({ active: true })}
+          onBlur={() => !locked && this.setState({ active: false })}
         />
-        <YAxis
-          type="number"
-          domain={[0, 300000]}
-          ticks={[0, 60000, 120000, 180000, 240000, 300000]}
-          dataKey="unfiltered_avg"
-          name="raw"
-          unit=""
-        />
-        <Scatter
-          name="red"
-          dataKey="unfiltered_avg"
-          fill="red"
-          legendType="none"
-        />
-        <Line
-          data={this.state.linePoints}
-          dataKey="unfiltered_avg"
-          stroke="blue"
-          dot={false}
-          activeDot={false}
-          legendType="rect"
-          name={
-            this.state.linePoints.length > 0
-              ? "Spike " +
-                Math.round(this.state.linePoints[0].slope) +
-                "x + " +
-                Math.round(this.state.linePoints[0].intercept)
-              : ""
-          }
-        />
-        <Line
-          data={this.state.lineFitPoints}
-          dataKey="unfiltered_avg"
-          stroke="purple"
-          dot={false}
-          activeDot={false}
-          legendType="rect"
-          name={
-            this.state.lineFitPoints.length > 0
-              ? "Regr. " +
-                Math.round(this.state.lineFitPoints[0].slope) +
-                "x + " +
-                Math.round(this.state.lineFitPoints[0].intercept)
-              : ""
-          }
-        />
-      </ComposedChart>
+        <label htmlFor={this.props.id} className={error && "error"}>
+          {error || label}
+        </label>
+      </div>
     );
   }
 }
