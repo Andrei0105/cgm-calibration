@@ -20,20 +20,53 @@ export class App extends Component<{}, AppState> {
     this.state = { nightscoutUrl: "", tempNsUrl: "", token: "", tempToken: "" };
   }
 
-  updateNightscoutData(e: FormEvent) {
-    e.preventDefault(); //prevent reload
-    this.setState(
-      {
-        nightscoutUrl: "",
-        token: "",
-      },
-      () => {
-        this.setState({
-          nightscoutUrl: this.state.tempNsUrl,
-          token: this.state.tempToken,
-        });
+  handleErrors(response: Response) {
+    if (!response.ok) {
+      switch (response.status) {
+        case 401:
+          alert("Unauthorized: Is your token correct?");
+          break;
+        default:
+          console.log(response);
       }
-    );
+      throw Error(response.statusText);
+    }
+    return response;
+  }
+
+  async updateNightscoutData(e: FormEvent) {
+    e.preventDefault(); //prevent reload
+    if (!this.state.tempNsUrl.startsWith("https://")) {
+      alert("The Nightscout URL has to start with https://");
+      return;
+    }
+    if (this.state.tempNsUrl.endsWith("/")) {
+      alert("The Nightscout URL cannot end with /");
+      return;
+    }
+    await fetch(
+      this.state.tempNsUrl +
+        "/api/v3/entries?&sort$desc=date&limit=1&fields=dateString,sgv`&now=" +
+        Date.now() +
+        "&token=" +
+        this.state.tempToken
+    )
+      .then(this.handleErrors)
+      .then((response) => {
+        this.setState(
+          {
+            nightscoutUrl: "",
+            token: "",
+          },
+          () => {
+            this.setState({
+              nightscoutUrl: this.state.tempNsUrl,
+              token: this.state.tempToken,
+            });
+          }
+        );
+      })
+      .catch((error) => {});
   }
 
   updateTempNsUrl(e: FormEvent) {
