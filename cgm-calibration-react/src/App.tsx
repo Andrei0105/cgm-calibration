@@ -22,23 +22,39 @@ export class App extends Component<{}, AppState> {
 
   updateNightscoutData(e: FormEvent) {
     e.preventDefault(); //prevent reload
-    this.setState({
-      nightscoutUrl: this.state.tempNsUrl,
-      token: this.state.tempToken,
-    });
+    this.setState(
+      {
+        nightscoutUrl: "",
+        token: "",
+      },
+      () => {
+        this.setState({
+          nightscoutUrl: this.state.tempNsUrl,
+          token: this.state.tempToken,
+        });
+      }
+    );
   }
 
   updateTempNsUrl(e: FormEvent) {
-    this.setState({ tempNsUrl: (e.target as HTMLTextAreaElement).value });
+    this.setState({
+      tempNsUrl: (e.target as HTMLTextAreaElement).value,
+      nightscoutUrl: "",
+      token: "",
+    });
   }
 
   updateTempToken(e: FormEvent) {
-    this.setState({ tempToken: (e.target as HTMLTextAreaElement).value });
+    this.setState({
+      tempToken: (e.target as HTMLTextAreaElement).value,
+      nightscoutUrl: "",
+      token: "",
+    });
   }
 
   render() {
     var plotWrapper;
-    if (this.state.nightscoutUrl && this.state.token) {
+    if (this.state.nightscoutUrl !== "" && this.state.token !== "") {
       plotWrapper = (
         <PlotWrapper
           nightscoutUrl={this.state.nightscoutUrl}
@@ -46,7 +62,7 @@ export class App extends Component<{}, AppState> {
         />
       );
     } else {
-      plotWrapper = undefined;
+      plotWrapper = <div></div>;
     }
     return (
       <div>
@@ -74,9 +90,20 @@ export class App extends Component<{}, AppState> {
             />
             <br></br>
             <button>Submit</button>
-            <div className="div-form-text">The token is NOT your Nightscout API Secret.</div>
-            <div className="div-form-text">Create a token with the readable role by following <a href="http://www.nightscout.info/wiki/welcome/website-features/0-9-features/authentication-roles">this guide.</a></div>
-            <div className="div-form-text">The source code is available <a href="https://github.com/Andrei0105/cgm-calibration">here</a>. For feature requests open an issue.</div>
+            <div className="div-form-text">
+              The token is NOT your Nightscout API Secret.
+            </div>
+            <div className="div-form-text">
+              Create a token with the readable role by following{" "}
+              <a href="http://www.nightscout.info/wiki/welcome/website-features/0-9-features/authentication-roles">
+                this guide.
+              </a>
+            </div>
+            <div className="div-form-text">
+              The source code is available{" "}
+              <a href="https://github.com/Andrei0105/cgm-calibration">here</a>.
+              For feature requests open an issue.
+            </div>
             <br></br>
           </form>
         </div>
