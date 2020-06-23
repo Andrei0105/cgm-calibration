@@ -198,3 +198,18 @@ body {
   color: white;
   margin-bottom: 20px;
 }
+
+.div-form-text {
+  background-color: white;
+  opacity: 0.7;
+  font-family: "Gotham SSm A", "Gotham SSm B", sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  text-align: justify;
+  width: 100%;
+  border: 0;
+  margin-bottom: 5px;
+  color: #38a052;
+  padding: 5px;
+  border-radius: 5px;
+}

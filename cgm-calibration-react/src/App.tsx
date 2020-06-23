@@ -51,7 +51,7 @@ export class App extends Component<{}, AppState> {
     return (
       <div>
         <div className="div-form">
-          <div className="div-title">CGM calibration</div>
+          <div className="div-title">CGM calibration statistics</div>
           <form onSubmit={this.updateNightscoutData}>
             <Input
               id={"1"}
@@ -74,6 +74,10 @@ export class App extends Component<{}, AppState> {
             />
             <br></br>
             <button>Submit</button>
+            <div className="div-form-text">The token is NOT your Nightscout API Secret.</div>
+            <div className="div-form-text">Create a token with the readable role by following <a href="http://www.nightscout.info/wiki/welcome/website-features/0-9-features/authentication-roles">this guide.</a></div>
+            <div className="div-form-text">The source code is available <a href="https://github.com/Andrei0105/cgm-calibration">here</a>. For feature requests open an issue.</div>
+            <br></br>
           </form>
         </div>
         {plotWrapper}
