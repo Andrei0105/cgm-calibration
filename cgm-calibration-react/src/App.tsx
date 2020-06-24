@@ -1,5 +1,6 @@
 import React, { Component, FormEvent } from 'react';
-import { CartesianGrid, ComposedChart, Legend, Line, Scatter, XAxis, YAxis } from 'recharts';
+import { CartesianGrid, ComposedChart, Legend, Line, Scatter, Tooltip, XAxis, YAxis } from 'recharts';
+import DefaultTooltipContent from 'recharts/lib/component/DefaultTooltipContent';
 import regression, { DataPoint } from 'regression';
 
 import './App.css';
@@ -172,6 +173,8 @@ type Calibration = {
   unfiltered_avg: number;
   glucose: number;
   date: Date;
+  spike_line: number;
+  fit_line: number;
 };
 
 type SensorStart = {
@@ -227,7 +230,7 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
     )
       .then((response) => response.json())
       .then((response) => {
-        var gvs = [];
+        var gvs : GlucoseValue[] = [];
         for (var g of response) {
           gvs.push(g as GlucoseValue);
         }
@@ -245,7 +248,7 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
     )
       .then((response) => response.json())
       .then((response) => {
-        var ss = [];
+        var ss : SensorStart[] = [];
         for (var s of response) {
           ss.push(s as SensorStart);
         }
@@ -263,7 +266,7 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
     )
       .then((response) => response.json())
       .then((response) => {
-        var cvs = [];
+        var cvs : Calibration[] = [];
         for (var c of response) {
           cvs.push(c as Calibration);
         }
@@ -351,33 +354,44 @@ type CalibrationChartProps = {
   calibrations: Calibration[];
 };
 
+type CalibrationChartState = {
+  linePoints: Calibration[];
+  lineFitPoints: Calibration[];
+  calibrations: Calibration[];
+};
+
 class CalibrationChart extends Component<
   CalibrationChartProps,
-  { linePoints: Calibration[]; lineFitPoints: Calibration[] }
+  CalibrationChartState
 > {
   constructor(props: CalibrationChartProps) {
     super(props);
-    this.state = { linePoints: [], lineFitPoints: [] };
+    this.state = { linePoints: [], lineFitPoints: [], calibrations: [] };
   }
 
   componentDidMount() {
+    let calibrations = this.props.calibrations;
     let lastCalibration = this.props.calibrations[0];
     let raw0 = lastCalibration.intercept;
     let raw250 = 250 * lastCalibration.slope + lastCalibration.intercept;
     let point0 = {
       glucose: 0,
-      unfiltered_avg: raw0,
+      spike_line: raw0,
       slope: lastCalibration.slope,
       intercept: lastCalibration.intercept,
     } as Calibration;
-    let point250 = { glucose: 250, unfiltered_avg: raw250 } as Calibration;
-    this.setState({ linePoints: [point0, point250] });
+    let point250 = { glucose: 250, spike_line: raw250 } as Calibration;
+    let points_spike = [point0, point250];
+    calibrations = calibrations.concat(points_spike);
 
-    let calibration_points = [];
-    for (let c of this.props.calibrations) {
-      calibration_points.push([c.glucose, c.unfiltered_avg] as DataPoint);
+    let calibration_points : DataPoint[] = [];
+    for (let c of calibrations) {
+      if (!c.spike_line) {
+        calibration_points.push([c.glucose, c.unfiltered_avg] as DataPoint);
+      }
     }
-    if (this.props.calibrations.length >= 2) {
+    let points_fit: Calibration[] = [];
+    if (calibration_points.length >= 2) {
       let result = regression.linear(calibration_points);
       const slope = result.equation[0];
       const intercept = result.equation[1];
@@ -385,13 +399,19 @@ class CalibrationChart extends Component<
       raw250 = 250 * slope + intercept;
       point0 = {
         glucose: 0,
-        unfiltered_avg: raw0,
+        fit_line: raw0,
         slope: slope,
         intercept: intercept,
       } as Calibration;
-      point250 = { glucose: 250, unfiltered_avg: raw250 } as Calibration;
-      this.setState({ lineFitPoints: [point0, point250] });
+      point250 = { glucose: 250, fit_line: raw250 } as Calibration;
+      points_fit = [point0, point250];
+      calibrations = calibrations.concat(points_fit);
     }
+    this.setState({
+      calibrations: calibrations,
+      linePoints: points_spike,
+      lineFitPoints: points_fit,
+    });
   }
 
   render() {
@@ -400,7 +420,7 @@ class CalibrationChart extends Component<
         <ComposedChart
           width={670}
           height={600}
-          data={this.props.calibrations}
+          data={this.state.calibrations}
           margin={{
             top: 10,
             right: 50,
@@ -409,7 +429,7 @@ class CalibrationChart extends Component<
           }}
         >
           <CartesianGrid strokeDasharray="5 5" fillOpacity="1" />
-          {/* <Tooltip /> */}
+          <Tooltip content={CustomTooltip}/>
           <Legend
             layout="vertical"
             verticalAlign="top"
@@ -434,14 +454,13 @@ class CalibrationChart extends Component<
             unit=""
           />
           <Scatter
-            name="red"
+            name="Calibration Point"
             dataKey="unfiltered_avg"
             fill="red"
             legendType="none"
           />
           <Line
-            data={this.state.linePoints}
-            dataKey="unfiltered_avg"
+            dataKey="spike_line"
             stroke="blue"
             dot={false}
             activeDot={false}
@@ -457,15 +476,14 @@ class CalibrationChart extends Component<
           />
           {this.state.lineFitPoints.length > 0 ? (
             <Line
-              data={this.state.lineFitPoints}
-              dataKey="unfiltered_avg"
+              dataKey="fit_line"
               stroke="purple"
               dot={false}
               activeDot={false}
               legendType="rect"
               name={
                 this.state.lineFitPoints.length > 0
-                  ? "Regr. " +
+                  ? "Best fit " +
                     Math.round(this.state.lineFitPoints[0].slope) +
                     "x + " +
                     Math.round(this.state.lineFitPoints[0].intercept)
@@ -480,6 +498,37 @@ class CalibrationChart extends Component<
     );
   }
 }
+
+const CustomTooltip = (props) => {
+  if (!props.active) {
+    return null
+  }
+  let newPayload = [
+    {
+      name: "Glucose: ",
+      value: Math.round(props.payload![0].payload!.glucose),
+      unit: "mg/dl"
+    },
+    {
+      name: "Raw: ",
+      value: Math.round(props.payload![0].payload!.unfiltered_avg),
+    }
+  ];
+
+  if(props.payload![0].dataKey === "spike_line" || props.payload![0].dataKey === "fit_line"){
+    newPayload = []
+  }
+
+  const dateString = props.payload![0].payload!.date
+  let formattedDate = ""
+  if (dateString) {
+    let date = new Date(dateString)
+    formattedDate = date.toLocaleDateString() + " " + date.toLocaleTimeString();
+  }
+
+  return <DefaultTooltipContent {...props} payload={newPayload} label={formattedDate} />;
+};
+
 
 type InputProps = {
   predicted: string;
