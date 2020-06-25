@@ -418,6 +418,7 @@ class CalibrationChart extends Component<
   onScatterDotClick(e) {
     var calibrations: Calibration[] = [];
     var disabled_calibration: Calibration = {} as Calibration;
+    var enabled_calibration: Calibration = {} as Calibration;
     for (var c of this.state.calibrations) {
       if (
         !(c.date && c.date === e.activePayload[0].payload.date) &&
@@ -425,20 +426,35 @@ class CalibrationChart extends Component<
       ) {
         calibrations.push(c);
       } else if (c.date && c.date === e.activePayload[0].payload.date) {
-        disabled_calibration = {
-          slope: c.slope,
-          intercept: c.intercept,
-          unfiltered_avg: undefined,
-          glucose: c.glucose,
-          date: new Date(c.date),
-          spike_line: c.spike_line,
-          fit_line: c.fit_line,
-        };
-        disabled_calibration.disabled_unfiltered = c.unfiltered_avg;
-        disabled_calibration.unfiltered_avg = undefined;
+        if (e.activePayload[0].payload.disabled_unfiltered) {
+          enabled_calibration = {
+            slope: c.slope,
+            intercept: c.intercept,
+            unfiltered_avg: c.disabled_unfiltered,
+            glucose: c.glucose,
+            date: new Date(c.date),
+            spike_line: c.spike_line,
+            fit_line: c.fit_line,
+            disabled_unfiltered: undefined,
+          };
+        } else {
+          disabled_calibration = {
+            slope: c.slope,
+            intercept: c.intercept,
+            unfiltered_avg: undefined,
+            glucose: c.glucose,
+            date: new Date(c.date),
+            spike_line: c.spike_line,
+            fit_line: c.fit_line,
+            disabled_unfiltered: c.unfiltered_avg,
+          };
+        }
       }
     }
 
+    if (Object.keys(enabled_calibration).length) {
+      calibrations.push(enabled_calibration);
+    }
     let calibration_points: DataPoint[] = [];
     for (let c of calibrations) {
       if (!c.spike_line && !c.fit_line && !c.disabled_unfiltered) {
@@ -464,7 +480,9 @@ class CalibrationChart extends Component<
       calibrations = calibrations.concat(points_fit);
     }
 
-    calibrations.push(disabled_calibration);
+    if (Object.keys(disabled_calibration).length) {
+      calibrations.push(disabled_calibration);
+    }
     this.setState({ calibrations: calibrations, lineFitPoints: points_fit });
   }
 
@@ -502,9 +520,9 @@ class CalibrationChart extends Component<
           />
           <YAxis
             type="number"
+            allowDataOverflow={true} // the domain will not be respected without this
             domain={[0, 300000]}
             ticks={[0, 60000, 120000, 180000, 240000, 300000]}
-            // dataKey="unfiltered_avg"
             name="raw"
             unit=""
           />
@@ -575,7 +593,9 @@ const CustomTooltip = (props) => {
     },
     {
       name: "Raw: ",
-      value: Math.round(props.payload![0].payload!.unfiltered_avg),
+      value: props.payload![0].payload!.unfiltered_avg
+        ? Math.round(props.payload![0].payload!.unfiltered_avg)
+        : Math.round(props.payload![0].payload!.disabled_unfiltered),
     },
   ];
 
