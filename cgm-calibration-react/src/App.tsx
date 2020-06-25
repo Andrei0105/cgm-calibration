@@ -417,11 +417,40 @@ class CalibrationChart extends Component<
   onScatterDotClick(e) {
     var calibrations: Calibration[] = [];
     for (var c of this.state.calibrations) {
-      if (!(c.date && c.date === e.activePayload[0].payload.date)) {
+      if (
+        !(c.date && c.date === e.activePayload[0].payload.date) &&
+        !c.fit_line
+      ) {
         calibrations.push(c);
       }
     }
-    this.setState({ calibrations: calibrations });
+
+    let calibration_points: DataPoint[] = [];
+    for (let c of calibrations) {
+      if (!c.spike_line) {
+        calibration_points.push([c.glucose, c.unfiltered_avg] as DataPoint);
+      }
+    }
+
+    let points_fit: Calibration[] = [];
+    if (calibration_points.length >= 2) {
+      let result = regression.linear(calibration_points);
+      const slope = result.equation[0];
+      const intercept = result.equation[1];
+      let raw0 = intercept;
+      let raw250 = 250 * slope + intercept;
+      let point0 = {
+        glucose: 0,
+        fit_line: raw0,
+        slope: slope,
+        intercept: intercept,
+      } as Calibration;
+      let point250 = { glucose: 250, fit_line: raw250 } as Calibration;
+      points_fit = [point0, point250];
+      calibrations = calibrations.concat(points_fit);
+    }
+
+    this.setState({ calibrations: calibrations, lineFitPoints: points_fit });
   }
 
   render() {
