@@ -1,5 +1,5 @@
 import React, { Component, FormEvent } from 'react';
-import { CartesianGrid, ComposedChart, Line, Scatter, Tooltip, XAxis, YAxis } from 'recharts';
+import { CartesianGrid, ComposedChart, Legend, Line, Scatter, Tooltip, XAxis, YAxis } from 'recharts';
 import DefaultTooltipContent from 'recharts/lib/component/DefaultTooltipContent';
 import regression, { DataPoint } from 'regression';
 
@@ -470,12 +470,12 @@ class CalibrationChart extends Component<
         >
           <CartesianGrid strokeDasharray="5 5" fillOpacity="1" />
           <Tooltip content={CustomTooltip} />
-          {/* <Legend
-            layout="vertical"
+          <Legend
+            layout="horizontal"
             verticalAlign="top"
-            align="right"
-            wrapperStyle={{ left: 90, right: 0, top: 15, bottom: 0 }}
-          /> */}
+            align="left"
+            wrapperStyle={{ left: 80 }}
+          />
 
           <XAxis
             type="number"
