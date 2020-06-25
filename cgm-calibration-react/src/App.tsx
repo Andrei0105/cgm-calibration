@@ -1,5 +1,5 @@
 import React, { Component, FormEvent } from 'react';
-import { CartesianGrid, ComposedChart, Legend, Line, Scatter, Tooltip, XAxis, YAxis } from 'recharts';
+import { CartesianGrid, ComposedChart, Line, Scatter, Tooltip, XAxis, YAxis } from 'recharts';
 import DefaultTooltipContent from 'recharts/lib/component/DefaultTooltipContent';
 import regression, { DataPoint } from 'regression';
 
@@ -230,7 +230,7 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
     )
       .then((response) => response.json())
       .then((response) => {
-        var gvs : GlucoseValue[] = [];
+        var gvs: GlucoseValue[] = [];
         for (var g of response) {
           gvs.push(g as GlucoseValue);
         }
@@ -248,7 +248,7 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
     )
       .then((response) => response.json())
       .then((response) => {
-        var ss : SensorStart[] = [];
+        var ss: SensorStart[] = [];
         for (var s of response) {
           ss.push(s as SensorStart);
         }
@@ -266,7 +266,7 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
     )
       .then((response) => response.json())
       .then((response) => {
-        var cvs : Calibration[] = [];
+        var cvs: Calibration[] = [];
         for (var c of response) {
           cvs.push(c as Calibration);
         }
@@ -384,7 +384,7 @@ class CalibrationChart extends Component<
     let points_spike = [point0, point250];
     calibrations = calibrations.concat(points_spike);
 
-    let calibration_points : DataPoint[] = [];
+    let calibration_points: DataPoint[] = [];
     for (let c of calibrations) {
       if (!c.spike_line) {
         calibration_points.push([c.glucose, c.unfiltered_avg] as DataPoint);
@@ -414,10 +414,21 @@ class CalibrationChart extends Component<
     });
   }
 
+  onScatterDotClick(e) {
+    var calibrations: Calibration[] = [];
+    for (var c of this.state.calibrations) {
+      if (!(c.date && c.date === e.activePayload[0].payload.date)) {
+        calibrations.push(c);
+      }
+    }
+    this.setState({ calibrations: calibrations });
+  }
+
   render() {
     return (
       <div className="div-chart">
         <ComposedChart
+          onClick={this.onScatterDotClick.bind(this)}
           width={670}
           height={600}
           data={this.state.calibrations}
@@ -429,13 +440,13 @@ class CalibrationChart extends Component<
           }}
         >
           <CartesianGrid strokeDasharray="5 5" fillOpacity="1" />
-          <Tooltip content={CustomTooltip}/>
-          <Legend
+          <Tooltip content={CustomTooltip} />
+          {/* <Legend
             layout="vertical"
             verticalAlign="top"
             align="right"
             wrapperStyle={{ left: 90, right: 0, top: 15, bottom: 0 }}
-          />
+          /> */}
 
           <XAxis
             type="number"
@@ -501,34 +512,42 @@ class CalibrationChart extends Component<
 
 const CustomTooltip = (props) => {
   if (!props.active) {
-    return null
+    return null;
   }
   let newPayload = [
     {
       name: "Glucose: ",
       value: Math.round(props.payload![0].payload!.glucose),
-      unit: "mg/dl"
+      unit: "mg/dl",
     },
     {
       name: "Raw: ",
       value: Math.round(props.payload![0].payload!.unfiltered_avg),
-    }
+    },
   ];
 
-  if(props.payload![0].dataKey === "spike_line" || props.payload![0].dataKey === "fit_line"){
-    newPayload = []
+  if (
+    props.payload![0].dataKey === "spike_line" ||
+    props.payload![0].dataKey === "fit_line"
+  ) {
+    newPayload = [];
   }
 
-  const dateString = props.payload![0].payload!.date
-  let formattedDate = ""
+  const dateString = props.payload![0].payload!.date;
+  let formattedDate = "";
   if (dateString) {
-    let date = new Date(dateString)
+    let date = new Date(dateString);
     formattedDate = date.toLocaleDateString() + " " + date.toLocaleTimeString();
   }
 
-  return <DefaultTooltipContent {...props} payload={newPayload} label={formattedDate} />;
+  return (
+    <DefaultTooltipContent
+      {...props}
+      payload={newPayload}
+      label={formattedDate}
+    />
+  );
 };
-
 
 type InputProps = {
   predicted: string;
