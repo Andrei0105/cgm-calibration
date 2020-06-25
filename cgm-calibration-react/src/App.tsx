@@ -170,11 +170,12 @@ type GlucoseValue = {
 type Calibration = {
   slope: number;
   intercept: number;
-  unfiltered_avg: number;
+  unfiltered_avg?: number;
   glucose: number;
   date: Date;
   spike_line: number;
   fit_line: number;
+  disabled_unfiltered?: number;
 };
 
 type SensorStart = {
@@ -416,18 +417,31 @@ class CalibrationChart extends Component<
 
   onScatterDotClick(e) {
     var calibrations: Calibration[] = [];
+    var disabled_calibration: Calibration = {} as Calibration;
     for (var c of this.state.calibrations) {
       if (
         !(c.date && c.date === e.activePayload[0].payload.date) &&
         !c.fit_line
       ) {
         calibrations.push(c);
+      } else if (c.date && c.date === e.activePayload[0].payload.date) {
+        disabled_calibration = {
+          slope: c.slope,
+          intercept: c.intercept,
+          unfiltered_avg: undefined,
+          glucose: c.glucose,
+          date: new Date(c.date),
+          spike_line: c.spike_line,
+          fit_line: c.fit_line,
+        };
+        disabled_calibration.disabled_unfiltered = c.unfiltered_avg;
+        disabled_calibration.unfiltered_avg = undefined;
       }
     }
 
     let calibration_points: DataPoint[] = [];
     for (let c of calibrations) {
-      if (!c.spike_line) {
+      if (!c.spike_line && !c.fit_line && !c.disabled_unfiltered) {
         calibration_points.push([c.glucose, c.unfiltered_avg] as DataPoint);
       }
     }
@@ -450,6 +464,7 @@ class CalibrationChart extends Component<
       calibrations = calibrations.concat(points_fit);
     }
 
+    calibrations.push(disabled_calibration);
     this.setState({ calibrations: calibrations, lineFitPoints: points_fit });
   }
 
@@ -489,14 +504,23 @@ class CalibrationChart extends Component<
             type="number"
             domain={[0, 300000]}
             ticks={[0, 60000, 120000, 180000, 240000, 300000]}
-            dataKey="unfiltered_avg"
+            // dataKey="unfiltered_avg"
             name="raw"
             unit=""
           />
           <Scatter
+            id="s1"
             name="Calibration Point"
             dataKey="unfiltered_avg"
             fill="red"
+            legendType="none"
+          />
+          <Scatter
+            id="s2"
+            name="Disabled Calibration Point"
+            data={this.state.calibrations}
+            dataKey="disabled_unfiltered"
+            fill="black"
             legendType="none"
           />
           <Line
