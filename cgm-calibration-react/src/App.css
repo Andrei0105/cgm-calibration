@@ -161,6 +161,7 @@ body {
 .div-charts {
   width: 670px;
   margin: auto;
+  text-align: center;
 }
 
 .div-form button {
@@ -223,6 +224,10 @@ body {
   border: 0;
   padding: 5px;
   border-radius: 5px;
+}
+
+.div-loading {
+  display: inline-block;
 }
 
 /* Customize the label (the container) */

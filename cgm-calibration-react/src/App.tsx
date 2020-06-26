@@ -1,4 +1,5 @@
 import React, { Component, FormEvent } from 'react';
+import ReactLoading from 'react-loading';
 import { CartesianGrid, ComposedChart, Legend, Line, Scatter, Tooltip, XAxis, YAxis } from 'recharts';
 import DefaultTooltipContent from 'recharts/lib/component/DefaultTooltipContent';
 import regression, { DataPoint } from 'regression';
@@ -74,7 +75,11 @@ export class App extends Component<{}, AppState> {
           }
         );
       })
-      .catch((error) => {});
+      .catch((error) => {
+        alert(
+          "Could not connect: Is your URL correct? Do you have 'cors' in your site's ENABLE config variable?"
+        );
+      });
   }
 
   updateTempNsUrl(e: FormEvent) {
@@ -189,6 +194,7 @@ type PlotWrapperState = {
   sensorStarts: SensorStart[];
   calibrations: Calibration[];
   calibrationValues: GlucoseValue[];
+  loading: boolean;
 };
 
 type GlucoseValue = {
@@ -222,6 +228,7 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
       sensorStarts: [],
       calibrations: [],
       calibrationValues: [],
+      loading: true,
     };
   }
 
@@ -242,8 +249,14 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
           ))}
         </div>
       );
+    } else if (this.state.loading) {
+      charts = (
+        <div className="div-loading">
+          <ReactLoading type={"spin"} color="#fff" />
+        </div>
+      );
     } else {
-      charts = <span>Loading...</span>;
+      charts = <div className="div-loading">An error has occured.</div>;
     }
     return <div className="div-charts">{charts}</div>;
   }
@@ -308,78 +321,83 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
   }
 
   async fetchCalibrations() {
-    let response = await fetch(
-      this.props.nightscoutUrl +
-        "/api/v3/treatments?&sort$desc=date&fields=glucose,created_at&glucoseType$in=Finger&notes$in=Sensor Calibration&now=" +
-        Date.now() +
-        "&token=" +
-        this.props.token
-    );
-    let calibration_values = await response.json();
-    let last_sensor_start_date = new Date(
-      this.state.sensorStarts[0].created_at
-    );
+    try {
+      let response = await fetch(
+        this.props.nightscoutUrl +
+          "/api/v3/treatments?&sort$desc=date&fields=glucose,created_at&glucoseType$in=Finger&notes$in=Sensor Calibration&now=" +
+          Date.now() +
+          "&token=" +
+          this.props.token
+      );
+      let calibration_values = await response.json();
+      let last_sensor_start_date = new Date(
+        this.state.sensorStarts[0].created_at
+      );
 
-    let calibrations: Calibration[] = [];
-    let nextCalibrationDate = new Date();
-    nextCalibrationDate.setDate(nextCalibrationDate.getDate() + 10);
-    for (let cv of calibration_values) {
-      if (
-        !(
-          nextCalibrationDate.getTime() >
-          new Date(cv.created_at).getTime() + 30 * 60 * 1000
-        )
-      ) {
+      let calibrations: Calibration[] = [];
+      let nextCalibrationDate = new Date();
+      nextCalibrationDate.setDate(nextCalibrationDate.getDate() + 10);
+      for (let cv of calibration_values) {
+        if (
+          !(
+            nextCalibrationDate.getTime() >
+            new Date(cv.created_at).getTime() + 30 * 60 * 1000
+          )
+        ) {
+          nextCalibrationDate = new Date(cv.created_at);
+          continue;
+        }
         nextCalibrationDate = new Date(cv.created_at);
-        continue;
+        if (new Date(cv.created_at) > last_sensor_start_date) {
+          let response = await fetch(
+            this.props.nightscoutUrl +
+              "/api/v3/entries?&sort$desc=date&limit=1&fields=dateString,sgv,unfiltered&dateString$lt=" +
+              cv.created_at +
+              "&now=" +
+              Date.now() +
+              "&token=" +
+              this.props.token
+          );
+          let previous = await response.json();
+
+          response = await fetch(
+            this.props.nightscoutUrl +
+              "/api/v3/entries?&sort=date&limit=1&fields=dateString,sgv,unfiltered&dateString$gt=" +
+              cv.created_at +
+              "&now=" +
+              Date.now() +
+              "&token=" +
+              this.props.token
+          );
+          let next = await response.json();
+          let unfiltered_avg =
+            (previous[0].unfiltered + next[0].unfiltered) / 2;
+
+          response = await fetch(
+            this.props.nightscoutUrl +
+              "/api/v3/entries?&sort$desc=date&fields=dateString,sgv,type,slope,intercept&type$in=cal&dateString$in=" +
+              cv.created_at +
+              "&now=" +
+              Date.now() +
+              "&token=" +
+              this.props.token
+          );
+          let calibration_slope_details = (await response.json())[0];
+
+          let calibration = {
+            unfiltered_avg: unfiltered_avg,
+            glucose: cv.glucose,
+            date: cv.created_at,
+            slope: calibration_slope_details.slope,
+            intercept: calibration_slope_details.intercept,
+          } as Calibration;
+          calibrations.push(calibration);
+        }
       }
-      nextCalibrationDate = new Date(cv.created_at);
-      if (new Date(cv.created_at) > last_sensor_start_date) {
-        let response = await fetch(
-          this.props.nightscoutUrl +
-            "/api/v3/entries?&sort$desc=date&limit=1&fields=dateString,sgv,unfiltered&dateString$lt=" +
-            cv.created_at +
-            "&now=" +
-            Date.now() +
-            "&token=" +
-            this.props.token
-        );
-        let previous = await response.json();
-
-        response = await fetch(
-          this.props.nightscoutUrl +
-            "/api/v3/entries?&sort=date&limit=1&fields=dateString,sgv,unfiltered&dateString$gt=" +
-            cv.created_at +
-            "&now=" +
-            Date.now() +
-            "&token=" +
-            this.props.token
-        );
-        let next = await response.json();
-        let unfiltered_avg = (previous[0].unfiltered + next[0].unfiltered) / 2;
-
-        response = await fetch(
-          this.props.nightscoutUrl +
-            "/api/v3/entries?&sort$desc=date&fields=dateString,sgv,type,slope,intercept&type$in=cal&dateString$in=" +
-            cv.created_at +
-            "&now=" +
-            Date.now() +
-            "&token=" +
-            this.props.token
-        );
-        let calibration_slope_details = (await response.json())[0];
-
-        let calibration = {
-          unfiltered_avg: unfiltered_avg,
-          glucose: cv.glucose,
-          date: cv.created_at,
-          slope: calibration_slope_details.slope,
-          intercept: calibration_slope_details.intercept,
-        } as Calibration;
-        calibrations.push(calibration);
-      }
+      this.setState({ calibrations: calibrations });
+    } catch {
+      this.setState({ loading: false });
     }
-    this.setState({ calibrations: calibrations });
   }
 }
 

@@ -14,6 +14,7 @@
     "@types/regression": "^2.0.0",
     "react": "^16.13.1",
     "react-dom": "^16.13.1",
+    "react-loading": "^2.0.3",
     "react-scripts": "3.4.1",
     "recharts": "^1.8.5",
     "regression": "^2.0.1",
