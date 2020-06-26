@@ -229,7 +229,7 @@ body {
 .container {
   display: block;
   position: relative;
-  padding-left: 25px;
+  padding-left: 35px;
   font-family: "Gotham SSm A", "Gotham SSm B", sans-serif;
   line-height: normal;
   margin: auto;
@@ -256,7 +256,7 @@ body {
 .checkmark {
   position: absolute;
   top: 1px;
-  left: 0;
+  left: 10px;
   height: 15px;
   width: 15px;
   background-color: #eee;

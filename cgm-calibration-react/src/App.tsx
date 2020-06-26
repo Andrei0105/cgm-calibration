@@ -10,6 +10,7 @@ type AppState = {
   tempToken: string;
   nightscoutUrl: string;
   token: string;
+  useMmol: boolean;
 };
 
 export class App extends Component<{}, AppState> {
@@ -18,7 +19,13 @@ export class App extends Component<{}, AppState> {
     this.updateNightscoutData = this.updateNightscoutData.bind(this);
     this.updateTempNsUrl = this.updateTempNsUrl.bind(this);
     this.updateTempToken = this.updateTempToken.bind(this);
-    this.state = { nightscoutUrl: "", tempNsUrl: "", token: "", tempToken: "" };
+    this.state = {
+      nightscoutUrl: "",
+      tempNsUrl: "",
+      token: "",
+      tempToken: "",
+      useMmol: false,
+    };
   }
 
   handleErrors(response: Response) {
@@ -86,6 +93,14 @@ export class App extends Component<{}, AppState> {
     });
   }
 
+  updateUseMmol(e: FormEvent) {
+    this.setState({
+      useMmol: (e.target as HTMLInputElement).checked,
+      nightscoutUrl: "",
+      token: "",
+    });
+  }
+
   render() {
     var plotWrapper;
     if (this.state.nightscoutUrl !== "" && this.state.token !== "") {
@@ -93,6 +108,7 @@ export class App extends Component<{}, AppState> {
         <PlotWrapper
           nightscoutUrl={this.state.nightscoutUrl}
           token={this.state.token}
+          useMmol={this.state.useMmol}
         />
       );
     } else {
@@ -129,6 +145,7 @@ export class App extends Component<{}, AppState> {
                 <input
                   type="checkbox"
                   id={"form-check"}
+                  onChange={this.updateUseMmol.bind(this)}
                 />
                 <span className="checkmark"></span>
               </label>
@@ -164,6 +181,7 @@ export default App;
 type PlotWrapperProps = {
   nightscoutUrl: string;
   token: string;
+  useMmol: boolean;
 };
 
 type PlotWrapperState = {
@@ -188,6 +206,7 @@ type Calibration = {
   spike_line: number;
   fit_line: number;
   disabled_unfiltered?: number;
+  glucose_mmol: number;
 };
 
 type SensorStart = {
@@ -218,6 +237,7 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
                 index,
                 this.state.calibrations.length
               )}
+              useMmol={this.props.useMmol}
             />
           ))}
         </div>
@@ -365,6 +385,7 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
 
 type CalibrationChartProps = {
   calibrations: Calibration[];
+  useMmol: boolean;
 };
 
 type CalibrationChartState = {
@@ -420,6 +441,13 @@ class CalibrationChart extends Component<
       points_fit = [point0, point250];
       calibrations = calibrations.concat(points_fit);
     }
+
+    if (this.props.useMmol) {
+      for (var c of calibrations) {
+        c.glucose_mmol = Math.round((c.glucose / 18) * 10) / 10;
+      }
+    }
+
     this.setState({
       calibrations: calibrations,
       linePoints: points_spike,
@@ -444,6 +472,7 @@ class CalibrationChart extends Component<
             intercept: c.intercept,
             unfiltered_avg: c.disabled_unfiltered,
             glucose: c.glucose,
+            glucose_mmol: c.glucose_mmol,
             date: new Date(c.date),
             spike_line: c.spike_line,
             fit_line: c.fit_line,
@@ -455,6 +484,7 @@ class CalibrationChart extends Component<
             intercept: c.intercept,
             unfiltered_avg: undefined,
             glucose: c.glucose,
+            glucose_mmol: c.glucose_mmol,
             date: new Date(c.date),
             spike_line: c.spike_line,
             fit_line: c.fit_line,
@@ -483,11 +513,16 @@ class CalibrationChart extends Component<
       let raw250 = 250 * slope + intercept;
       let point0 = {
         glucose: 0,
+        glucose_mmol: 0,
         fit_line: raw0,
         slope: slope,
         intercept: intercept,
       } as Calibration;
-      let point250 = { glucose: 250, fit_line: raw250 } as Calibration;
+      let point250 = {
+        glucose: 250,
+        glucose_mmol: 13.9,
+        fit_line: raw250,
+      } as Calibration;
       points_fit = [point0, point250];
       calibrations = calibrations.concat(points_fit);
     }
@@ -524,11 +559,15 @@ class CalibrationChart extends Component<
 
           <XAxis
             type="number"
-            domain={[0, 250]}
-            ticks={[50, 100, 150, 200, 250]}
-            dataKey="glucose"
+            domain={this.props.useMmol ? [0, 13.9] : [0, 250]}
+            ticks={
+              this.props.useMmol
+                ? [2.8, 5.6, 8.3, 11.1, 13.9]
+                : [50, 100, 150, 200, 250]
+            }
+            dataKey={this.props.useMmol ? "glucose_mmol" : "glucose"}
             name="glucose"
-            unit="mg/dl"
+            unit={this.props.useMmol ? "mmol/L" : "mg/dL"}
           />
           <YAxis
             type="number"
@@ -600,8 +639,8 @@ const CustomTooltip = (props) => {
   let newPayload = [
     {
       name: "Glucose: ",
-      value: Math.round(props.payload![0].payload!.glucose),
-      unit: "mg/dl",
+      value: props.label,
+      unit: props.label < 30 ? " mmol/L" : " mg/dL",
     },
     {
       name: "Raw: ",
