@@ -123,6 +123,18 @@ export class App extends Component<{}, AppState> {
               value={this.state.tempToken}
             />
             <br></br>
+            <div className="div-form-check">
+              <label className="container" htmlFor={"form-check"}>
+                Use mmol/L{" "}
+                <input
+                  type="checkbox"
+                  id={"form-check"}
+                />
+                <span className="checkmark"></span>
+              </label>
+            </div>
+
+            <br></br>
             <button>Submit</button>
             <div className="div-form-text">
               The token is NOT your Nightscout API Secret.
