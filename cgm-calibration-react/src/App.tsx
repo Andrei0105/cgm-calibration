@@ -252,7 +252,7 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
     } else if (this.state.loading) {
       charts = (
         <div className="div-loading">
-          <ReactLoading type={"spin"} color="#fff" />
+          <ReactLoading type="spin" color="#fff" />
         </div>
       );
     } else {
@@ -322,6 +322,9 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
 
   async fetchCalibrations() {
     try {
+      if (!this.state.sensorStarts.length) {
+        throw "Could not find a 'Sensor Start' record";
+      }
       let response = await fetch(
         this.props.nightscoutUrl +
           "/api/v3/treatments?&sort$desc=date&fields=glucose,created_at&glucoseType$in=Finger&notes$in=Sensor Calibration&now=" +
@@ -330,6 +333,9 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
           this.props.token
       );
       let calibration_values = await response.json();
+      if (!calibration_values.length) {
+        throw "Could not find any calibration value";
+      }
       let last_sensor_start_date = new Date(
         this.state.sensorStarts[0].created_at
       );
@@ -370,9 +376,17 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
               this.props.token
           );
           let next = await response.json();
-          let unfiltered_avg =
-            (previous[0].unfiltered + next[0].unfiltered) / 2;
-
+          if (!previous.length && !next.length) {
+            throw "Could not find sensor values before or after calibration";
+          }
+          let unfiltered_avg = 0;
+          if (!previous.length) {
+            unfiltered_avg = next[0].unfiltered;
+          } else if (!next.length) {
+            unfiltered_avg = previous[0].unfiltered;
+          } else {
+            unfiltered_avg = (previous[0].unfiltered + next[0].unfiltered) / 2;
+          }
           response = await fetch(
             this.props.nightscoutUrl +
               "/api/v3/entries?&sort$desc=date&fields=dateString,sgv,type,slope,intercept&type$in=cal&dateString$in=" +
@@ -382,7 +396,11 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
               "&token=" +
               this.props.token
           );
-          let calibration_slope_details = (await response.json())[0];
+          let calibration_slope_response = await response.json();
+          if (!calibration_slope_response.length) {
+            throw "Could not find calibration slope for date: " + cv.created_at;
+          }
+          let calibration_slope_details = calibration_slope_response[0];
 
           let calibration = {
             unfiltered_avg: unfiltered_avg,
@@ -395,8 +413,9 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
         }
       }
       this.setState({ calibrations: calibrations });
-    } catch {
+    } catch (e) {
       this.setState({ loading: false });
+      alert("Error fetching calibrations: " + e);
     }
   }
 }
@@ -477,78 +496,82 @@ class CalibrationChart extends Component<
     var calibrations: Calibration[] = [];
     var disabled_calibration: Calibration = {} as Calibration;
     var enabled_calibration: Calibration = {} as Calibration;
-    for (var c of this.state.calibrations) {
-      if (
-        !(c.date && c.date === e.activePayload[0].payload.date) &&
-        !c.fit_line
-      ) {
-        calibrations.push(c);
-      } else if (c.date && c.date === e.activePayload[0].payload.date) {
-        if (e.activePayload[0].payload.disabled_unfiltered) {
-          enabled_calibration = {
-            slope: c.slope,
-            intercept: c.intercept,
-            unfiltered_avg: c.disabled_unfiltered,
-            glucose: c.glucose,
-            glucose_mmol: c.glucose_mmol,
-            date: new Date(c.date),
-            spike_line: c.spike_line,
-            fit_line: c.fit_line,
-            disabled_unfiltered: undefined,
-          };
-        } else {
-          disabled_calibration = {
-            slope: c.slope,
-            intercept: c.intercept,
-            unfiltered_avg: undefined,
-            glucose: c.glucose,
-            glucose_mmol: c.glucose_mmol,
-            date: new Date(c.date),
-            spike_line: c.spike_line,
-            fit_line: c.fit_line,
-            disabled_unfiltered: c.unfiltered_avg,
-          };
+    try {
+      for (var c of this.state.calibrations) {
+        if (
+          !(c.date && c.date === e.activePayload[0].payload.date) &&
+          !c.fit_line
+        ) {
+          calibrations.push(c);
+        } else if (c.date && c.date === e.activePayload[0].payload.date) {
+          if (e.activePayload[0].payload.disabled_unfiltered) {
+            enabled_calibration = {
+              slope: c.slope,
+              intercept: c.intercept,
+              unfiltered_avg: c.disabled_unfiltered,
+              glucose: c.glucose,
+              glucose_mmol: c.glucose_mmol,
+              date: new Date(c.date),
+              spike_line: c.spike_line,
+              fit_line: c.fit_line,
+              disabled_unfiltered: undefined,
+            };
+          } else {
+            disabled_calibration = {
+              slope: c.slope,
+              intercept: c.intercept,
+              unfiltered_avg: undefined,
+              glucose: c.glucose,
+              glucose_mmol: c.glucose_mmol,
+              date: new Date(c.date),
+              spike_line: c.spike_line,
+              fit_line: c.fit_line,
+              disabled_unfiltered: c.unfiltered_avg,
+            };
+          }
         }
       }
-    }
 
-    if (Object.keys(enabled_calibration).length) {
-      calibrations.push(enabled_calibration);
-    }
-    let calibration_points: DataPoint[] = [];
-    for (let c of calibrations) {
-      if (!c.spike_line && !c.fit_line && !c.disabled_unfiltered) {
-        calibration_points.push([c.glucose, c.unfiltered_avg] as DataPoint);
+      if (Object.keys(enabled_calibration).length) {
+        calibrations.push(enabled_calibration);
       }
-    }
+      let calibration_points: DataPoint[] = [];
+      for (let c of calibrations) {
+        if (!c.spike_line && !c.fit_line && !c.disabled_unfiltered) {
+          calibration_points.push([c.glucose, c.unfiltered_avg] as DataPoint);
+        }
+      }
 
-    let points_fit: Calibration[] = [];
-    if (calibration_points.length >= 2) {
-      let result = regression.linear(calibration_points);
-      const slope = result.equation[0];
-      const intercept = result.equation[1];
-      let raw0 = intercept;
-      let raw250 = 250 * slope + intercept;
-      let point0 = {
-        glucose: 0,
-        glucose_mmol: 0,
-        fit_line: raw0,
-        slope: slope,
-        intercept: intercept,
-      } as Calibration;
-      let point250 = {
-        glucose: 250,
-        glucose_mmol: 13.9,
-        fit_line: raw250,
-      } as Calibration;
-      points_fit = [point0, point250];
-      calibrations = calibrations.concat(points_fit);
-    }
+      let points_fit: Calibration[] = [];
+      if (calibration_points.length >= 2) {
+        let result = regression.linear(calibration_points);
+        const slope = result.equation[0];
+        const intercept = result.equation[1];
+        let raw0 = intercept;
+        let raw250 = 250 * slope + intercept;
+        let point0 = {
+          glucose: 0,
+          glucose_mmol: 0,
+          fit_line: raw0,
+          slope: slope,
+          intercept: intercept,
+        } as Calibration;
+        let point250 = {
+          glucose: 250,
+          glucose_mmol: 13.9,
+          fit_line: raw250,
+        } as Calibration;
+        points_fit = [point0, point250];
+        calibrations = calibrations.concat(points_fit);
+      }
 
-    if (Object.keys(disabled_calibration).length) {
-      calibrations.push(disabled_calibration);
+      if (Object.keys(disabled_calibration).length) {
+        calibrations.push(disabled_calibration);
+      }
+      this.setState({ calibrations: calibrations, lineFitPoints: points_fit });
+    } catch (e) {
+      alert("Error recalculating state: " + e);
     }
-    this.setState({ calibrations: calibrations, lineFitPoints: points_fit });
   }
 
   render() {
