@@ -263,7 +263,8 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
 
   async componentDidMount() {
     await this.fetchSensorStarts();
-    await this.fetchCalibrations();
+    await this.fetchCalibrationsXdripIos();
+    console.log(this.state);
   }
 
   async fetchLastThree() {
@@ -418,7 +419,108 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
       alert("Error fetching calibrations: " + e);
     }
   }
+
+  async fetchCalibrationsXdripIos() {
+    try {
+      if (!this.state.sensorStarts.length) {
+        throw "Could not find a 'Sensor Start' record";
+      }
+      let last_sensor_start_date = new Date(
+        this.state.sensorStarts[0].created_at
+      );
+      let response = await fetch(
+        this.props.nightscoutUrl +
+          "/api/v3/entries?&sort$desc=date&fields=mbg,dateString,slope,intercept,filtered,unfiltered&type$in=cal&dateString$gt=" + "2020-06-28T09:24:34.088Z" + "&now=" +
+          Date.now() +
+          "&token=" +
+          this.props.token
+      );
+      let calibration_values = await response.json();
+      if (!calibration_values.length) {
+        throw "Could not find any calibration value";
+      }
+
+      let calibrations: Calibration[] = [];
+      let nextCalibrationDate = new Date();
+      nextCalibrationDate.setDate(nextCalibrationDate.getDate() + 10);
+      for (let cv of calibration_values) {
+        // if (
+        //   !(
+        //     nextCalibrationDate.getTime() >
+        //     new Date(cv.created_at).getTime() + 30 * 60 * 1000
+        //   )
+        // ) {
+        //   nextCalibrationDate = new Date(cv.created_at);
+        //   continue;
+        // }
+        // nextCalibrationDate = new Date(cv.created_at);
+        // if (new Date(cv.created_at) > last_sensor_start_date) {
+        //   let response = await fetch(
+        //     this.props.nightscoutUrl +
+        //       "/api/v3/entries?&sort$desc=date&limit=1&fields=dateString,sgv,unfiltered&dateString$lt=" +
+        //       cv.created_at +
+        //       "&now=" +
+        //       Date.now() +
+        //       "&token=" +
+        //       this.props.token
+        //   );
+        //   let previous = await response.json();
+
+        //   response = await fetch(
+        //     this.props.nightscoutUrl +
+        //       "/api/v3/entries?&sort=date&limit=1&fields=dateString,sgv,unfiltered&dateString$gt=" +
+        //       cv.created_at +
+        //       "&now=" +
+        //       Date.now() +
+        //       "&token=" +
+        //       this.props.token
+        //   );
+        //   let next = await response.json();
+        //   if (!previous.length && !next.length) {
+        //     throw "Could not find sensor values before or after calibration";
+        //   }
+        //   let unfiltered_avg = 0;
+        //   if (!previous.length) {
+        //     unfiltered_avg = next[0].unfiltered;
+        //   } else if (!next.length) {
+        //     unfiltered_avg = previous[0].unfiltered;
+        //   } else {
+        //     unfiltered_avg = (previous[0].unfiltered + next[0].unfiltered) / 2;
+        //   }
+        //   response = await fetch(
+        //     this.props.nightscoutUrl +
+        //       "/api/v3/entries?&sort$desc=date&fields=dateString,sgv,type,slope,intercept&type$in=cal&dateString$in=" +
+        //       cv.created_at +
+        //       "&now=" +
+        //       Date.now() +
+        //       "&token=" +
+        //       this.props.token
+        //   );
+        //   let calibration_slope_response = await response.json();
+        //   if (!calibration_slope_response.length) {
+        //     throw "Could not find calibration slope for date: " + cv.created_at;
+        //   }
+        //   let calibration_slope_details = calibration_slope_response[0];
+
+          let calibration = {
+            unfiltered_avg: cv.unfiltered,
+            glucose: cv.mbg,
+            date: cv.dateString,
+            slope: cv.slope,
+            intercept: cv.intercept,
+          } as Calibration;
+          calibrations.push(calibration);
+        // }
+      }
+      this.setState({ calibrations: calibrations });
+    } catch (e) {
+      this.setState({ loading: false });
+      alert("Error fetching calibrations: " + e);
+    }
+  }
 }
+
+
 
 type CalibrationChartProps = {
   calibrations: Calibration[];
@@ -443,8 +545,10 @@ class CalibrationChart extends Component<
   componentDidMount() {
     let calibrations = this.props.calibrations;
     let lastCalibration = this.props.calibrations[0];
-    let raw0 = lastCalibration.intercept;
-    let raw250 = 250 * lastCalibration.slope + lastCalibration.intercept;
+    // let raw0 = lastCalibration.intercept;
+    let raw0 = (-lastCalibration.intercept/lastCalibration.slope) * 1000;
+    // let raw250 = 250 * lastCalibration.slope + lastCalibration.intercept;
+    let raw250 = ((250 - lastCalibration.intercept) / lastCalibration.slope) * 1000;
     let point0 = {
       glucose: 0,
       spike_line: raw0,
@@ -453,6 +557,25 @@ class CalibrationChart extends Component<
     } as Calibration;
     let point250 = { glucose: 250, spike_line: raw250 } as Calibration;
     let points_spike = [point0, point250];
+
+    let spike_slope = 1000/points_spike[0].slope;
+    let spike_intercept = - (points_spike[0].intercept * 1000) / points_spike[0].slope
+
+    points_spike[0].slope = spike_slope;
+    points_spike[0].intercept = spike_intercept;
+
+    // let spike_points: DataPoint[] = [];
+    // for (let p of points_spike) {
+    //     spike_points.push([p.glucose, p.spike_line] as DataPoint);
+    // }
+    // if (spike_points.length >= 2) {
+    //   let result = regression.linear(spike_points);
+    //   const slope = result.equation[0];
+    //   const intercept = result.equation[1];
+    //   points_spike[0].slope = slope;
+    //   points_spike[0].intercept = intercept;
+    // }
+    
     calibrations = calibrations.concat(points_spike);
 
     let calibration_points: DataPoint[] = [];
@@ -575,6 +698,7 @@ class CalibrationChart extends Component<
   }
 
   render() {
+    console.log(this.state)
     return (
       <div className="div-chart">
         <ComposedChart
