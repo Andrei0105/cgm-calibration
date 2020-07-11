@@ -12,6 +12,7 @@ type AppState = {
   nightscoutUrl: string;
   token: string;
   useMmol: boolean;
+  selectedApp: string;
 };
 
 export class App extends Component<{}, AppState> {
@@ -26,6 +27,7 @@ export class App extends Component<{}, AppState> {
       token: "",
       tempToken: "",
       useMmol: false,
+      selectedApp: "Spike",
     };
   }
 
@@ -106,6 +108,14 @@ export class App extends Component<{}, AppState> {
     });
   }
 
+  updateSelectedApp(e: FormEvent) {
+    this.setState({
+      selectedApp: (e.target as HTMLInputElement).value,
+      nightscoutUrl: "",
+      token: "",
+    });
+  }
+
   render() {
     var plotWrapper;
     if (this.state.nightscoutUrl !== "" && this.state.token !== "") {
@@ -158,11 +168,13 @@ export class App extends Component<{}, AppState> {
             <br></br>
             <div className="div-form-check">
               <label className="container">Spike
-                <input type="radio" name="app" checked={true} />
+                <input type="radio" name="app" defaultChecked={true} value="Spike"
+                  onClick={this.updateSelectedApp.bind(this)} />
                 <span className="checkmark-radio"></span>
               </label>
               <label className="container">xDrip4iOS
-                <input type="radio" name="app" />
+                <input type="radio" name="app" value="xDrip4iOS"
+                  onClick={this.updateSelectedApp.bind(this)} />
                 <span className="checkmark-radio"></span>
               </label>
             </div>
