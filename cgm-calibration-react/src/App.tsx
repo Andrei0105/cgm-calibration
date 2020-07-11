@@ -55,10 +55,10 @@ export class App extends Component<{}, AppState> {
     }
     await fetch(
       this.state.tempNsUrl +
-        "/api/v3/entries?&sort$desc=date&limit=1&fields=dateString,sgv`&now=" +
-        Date.now() +
-        "&token=" +
-        this.state.tempToken
+      "/api/v3/entries?&sort$desc=date&limit=1&fields=dateString,sgv`&now=" +
+      Date.now() +
+      "&token=" +
+      this.state.tempToken
     )
       .then(this.handleErrors)
       .then((response) => {
@@ -153,6 +153,17 @@ export class App extends Component<{}, AppState> {
                   onChange={this.updateUseMmol.bind(this)}
                 />
                 <span className="checkmark"></span>
+              </label>
+            </div>
+            <br></br>
+            <div className="div-form-check">
+              <label className="container">Spike
+                <input type="radio" name="app" checked={true} />
+                <span className="checkmark-radio"></span>
+              </label>
+              <label className="container">xDrip4iOS
+                <input type="radio" name="app" />
+                <span className="checkmark-radio"></span>
               </label>
             </div>
 
@@ -269,10 +280,10 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
   async fetchLastThree() {
     await fetch(
       this.props.nightscoutUrl +
-        "/api/v3/entries?&sort$desc=date&limit=3&fields=dateString,sgv,direction`&now=" +
-        Date.now() +
-        "&token=" +
-        this.props.token
+      "/api/v3/entries?&sort$desc=date&limit=3&fields=dateString,sgv,direction`&now=" +
+      Date.now() +
+      "&token=" +
+      this.props.token
     )
       .then((response) => response.json())
       .then((response) => {
@@ -287,10 +298,10 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
   async fetchSensorStarts() {
     await fetch(
       this.props.nightscoutUrl +
-        "/api/v3/treatments?&sort$desc=date&limit=10&fields=eventType,created_at&eventType$in=Sensor Start&now=" +
-        Date.now() +
-        "&token=" +
-        this.props.token
+      "/api/v3/treatments?&sort$desc=date&limit=10&fields=eventType,created_at&eventType$in=Sensor Start&now=" +
+      Date.now() +
+      "&token=" +
+      this.props.token
     )
       .then((response) => response.json())
       .then((response) => {
@@ -305,10 +316,10 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
   async fetchCalibrationSlopes() {
     await fetch(
       this.props.nightscoutUrl +
-        "/api/v3/entries?&sort$desc=date&fields=dateString,sgv,type,slope,intercept&type$in=cal&now=" +
-        Date.now() +
-        "&token=" +
-        this.props.token
+      "/api/v3/entries?&sort$desc=date&fields=dateString,sgv,type,slope,intercept&type$in=cal&now=" +
+      Date.now() +
+      "&token=" +
+      this.props.token
     )
       .then((response) => response.json())
       .then((response) => {
@@ -327,10 +338,10 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
       }
       let response = await fetch(
         this.props.nightscoutUrl +
-          "/api/v3/treatments?&sort$desc=date&fields=glucose,created_at&glucoseType$in=Finger&notes$in=Sensor Calibration&now=" +
-          Date.now() +
-          "&token=" +
-          this.props.token
+        "/api/v3/treatments?&sort$desc=date&fields=glucose,created_at&glucoseType$in=Finger&notes$in=Sensor Calibration&now=" +
+        Date.now() +
+        "&token=" +
+        this.props.token
       );
       let calibration_values = await response.json();
       if (!calibration_values.length) {
@@ -357,23 +368,23 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
         if (new Date(cv.created_at) > last_sensor_start_date) {
           let response = await fetch(
             this.props.nightscoutUrl +
-              "/api/v3/entries?&sort$desc=date&limit=1&fields=dateString,sgv,unfiltered&dateString$lt=" +
-              cv.created_at +
-              "&now=" +
-              Date.now() +
-              "&token=" +
-              this.props.token
+            "/api/v3/entries?&sort$desc=date&limit=1&fields=dateString,sgv,unfiltered&dateString$lt=" +
+            cv.created_at +
+            "&now=" +
+            Date.now() +
+            "&token=" +
+            this.props.token
           );
           let previous = await response.json();
 
           response = await fetch(
             this.props.nightscoutUrl +
-              "/api/v3/entries?&sort=date&limit=1&fields=dateString,sgv,unfiltered&dateString$gt=" +
-              cv.created_at +
-              "&now=" +
-              Date.now() +
-              "&token=" +
-              this.props.token
+            "/api/v3/entries?&sort=date&limit=1&fields=dateString,sgv,unfiltered&dateString$gt=" +
+            cv.created_at +
+            "&now=" +
+            Date.now() +
+            "&token=" +
+            this.props.token
           );
           let next = await response.json();
           if (!previous.length && !next.length) {
@@ -389,12 +400,12 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
           }
           response = await fetch(
             this.props.nightscoutUrl +
-              "/api/v3/entries?&sort$desc=date&fields=dateString,sgv,type,slope,intercept&type$in=cal&dateString$in=" +
-              cv.created_at +
-              "&now=" +
-              Date.now() +
-              "&token=" +
-              this.props.token
+            "/api/v3/entries?&sort$desc=date&fields=dateString,sgv,type,slope,intercept&type$in=cal&dateString$in=" +
+            cv.created_at +
+            "&now=" +
+            Date.now() +
+            "&token=" +
+            this.props.token
           );
           let calibration_slope_response = await response.json();
           if (!calibration_slope_response.length) {
@@ -434,7 +445,7 @@ type CalibrationChartState = {
 class CalibrationChart extends Component<
   CalibrationChartProps,
   CalibrationChartState
-> {
+  > {
   constructor(props: CalibrationChartProps) {
     super(props);
     this.state = { linePoints: [], lineFitPoints: [], calibrations: [] };
@@ -642,9 +653,9 @@ class CalibrationChart extends Component<
             name={
               this.state.linePoints.length > 0
                 ? "Spike " +
-                  Math.round(this.state.linePoints[0].slope) +
-                  "x + " +
-                  Math.round(this.state.linePoints[0].intercept)
+                Math.round(this.state.linePoints[0].slope) +
+                "x + " +
+                Math.round(this.state.linePoints[0].intercept)
                 : ""
             }
           />
@@ -658,15 +669,15 @@ class CalibrationChart extends Component<
               name={
                 this.state.lineFitPoints.length > 0
                   ? "Best fit " +
-                    Math.round(this.state.lineFitPoints[0].slope) +
-                    "x + " +
-                    Math.round(this.state.lineFitPoints[0].intercept)
+                  Math.round(this.state.lineFitPoints[0].slope) +
+                  "x + " +
+                  Math.round(this.state.lineFitPoints[0].intercept)
                   : ""
               }
             />
           ) : (
-            ""
-          )}
+              ""
+            )}
         </ComposedChart>
       </div>
     );
@@ -760,7 +771,7 @@ class Input extends Component<InputProps, InputState> {
     const { predicted, locked } = this.props;
     const fieldClassName = `field ${
       (locked ? active : active || value) && "active"
-    } ${locked && !active && "locked"}`;
+      } ${locked && !active && "locked"}`;
 
     return (
       <div className={fieldClassName}>
