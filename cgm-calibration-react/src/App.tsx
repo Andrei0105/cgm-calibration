@@ -124,6 +124,7 @@ export class App extends Component<{}, AppState> {
           nightscoutUrl={this.state.nightscoutUrl}
           token={this.state.token}
           useMmol={this.state.useMmol}
+          selectedApp={this.state.selectedApp}
         />
       );
     } else {
@@ -210,6 +211,7 @@ type PlotWrapperProps = {
   nightscoutUrl: string;
   token: string;
   useMmol: boolean;
+  selectedApp: string;
 };
 
 type PlotWrapperState = {
@@ -286,7 +288,11 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
 
   async componentDidMount() {
     await this.fetchSensorStarts();
-    await this.fetchCalibrations();
+    if (this.props.selectedApp === "xDrip4iOS") {
+      await this.fetchCalibrationsXdripIos();
+    } else {
+      await this.fetchCalibrations();
+    }
   }
 
   async fetchLastThree() {
@@ -431,6 +437,68 @@ class PlotWrapper extends Component<PlotWrapperProps, PlotWrapperState> {
             date: cv.created_at,
             slope: calibration_slope_details.slope,
             intercept: calibration_slope_details.intercept,
+          } as Calibration;
+          calibrations.push(calibration);
+        }
+      }
+      this.setState({ calibrations: calibrations });
+    } catch (e) {
+      this.setState({ loading: false });
+      alert("Error fetching calibrations: " + e);
+    }
+  }
+
+  async fetchCalibrationsXdripIos() {
+    try {
+      if (!this.state.sensorStarts.length) {
+        throw "Could not find a 'Sensor Start' record";
+      }
+      let last_sensor_start_date = this.state.sensorStarts[0].created_at
+      let response = await fetch(
+        this.props.nightscoutUrl +
+        "/api/v3/entries?&sort$desc=date&fields=dateString,slope,intercept,filtered,unfiltered&type$in=cal&dateString$gt=" + last_sensor_start_date + "&now=" +
+        Date.now() +
+        "&token=" +
+        this.props.token
+      );
+      let calibration_values = await response.json();
+      if (!calibration_values.length) {
+        throw "Could not find any calibration value";
+      }
+
+      let calibrations: Calibration[] = [];
+      let nextCalibrationDate = new Date();
+      nextCalibrationDate.setDate(nextCalibrationDate.getDate() + 10);
+      for (let cv of calibration_values) {
+        let response = await fetch(
+          this.props.nightscoutUrl +
+          "/api/v3/entries?&sort$desc=date&limit=1&fields=mbg,unfiltered&type$in=mbg&dateString$in=" +
+          cv.dateString +
+          "&now=" +
+          Date.now() +
+          "&token=" +
+          this.props.token
+        );
+
+        let mbgRecord = await response.json()
+
+        response = await fetch(
+          this.props.nightscoutUrl +
+          "/api/v3/entries?&sort$desc=date&limit=1&fields=sgv,unfiltered&type$in=sgv&dateString$lt=" +
+          cv.dateString +
+          "&now=" +
+          Date.now() +
+          "&token=" +
+          this.props.token
+        );
+        let sgvRecord = await response.json();
+        if (mbgRecord) {
+          let calibration = {
+            unfiltered_avg: sgvRecord[0].unfiltered,
+            glucose: mbgRecord[0].mbg,
+            date: cv.dateString,
+            slope: cv.slope,
+            intercept: cv.intercept,
           } as Calibration;
           calibrations.push(calibration);
         }
